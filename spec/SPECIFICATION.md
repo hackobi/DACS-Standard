@@ -2,7 +2,7 @@
 
 **Introduction and DACS-1 through DACS-5**
 
-> Published as DACS **v0.1** — the first publicly released version, with all five per-stage standards versioned together as a single document. See [CHANGELOG](../CHANGELOG.md) for normative change history.
+> Published as DACS **v0.1** — the first publicly released version. See [CHANGELOG](../CHANGELOG.md) for normative change history.
 
 ## About this document
 
@@ -18,7 +18,17 @@ Autonomous agents are transacting with agents they have never met. Open standard
 ## 1. The problem
 
 An agent making a transaction with another agent today has three working options:
+
+- **Pre-integrated bilateral trust.** Two operators agree in advance what counts as identity, payment, and delivery. Works for small ecosystems, breaks at scale.
+- **Closed operator marketplace.** Both agents onboard to a platform that handles identity, payment, and dispute. Works at scale, but the operator captures rents, controls access, and becomes a single point of trust.
+- **Open standards.** Identity, payment, discovery via published standards any agent can implement. The only path that scales without conceding a marketplace position to an operator, but only if a complete lifecycle exists. The open standards available today cover stages, not the lifecycle.
+
 The fragments exist. The lifecycle does not. A buyer agent today can use existing open standards to discover that a seller agent exists, recognise the seller’s identity, and authorise a payment to it. What it cannot do with open standards alone:
+
+- Declare what bundle of identity claims a transaction requires — from a signing key for a micropayment to LEI plus regulatory registration plus sanctions clearance for an institutional trade — and verify each claim against the right authority.
+- Negotiate terms in private. Sealed-bid procurement, RFQ across counterparties, and term negotiation on flows touching material non-public information all need to happen without leaking to a public mempool or requiring a trusted execution environment.
+- Produce an end-to-end session record anchoring identity, verification, negotiation, payment, delivery, and attestation into a single audit artifact the participants own.
+
 These gaps map cleanly to four of the five stages of a transaction. They are why institutional and regulated agents still fall back to operator marketplaces. DACS is designed to provide the lifecycle on a public, permissionless substrate, composing with the open standards that already work for individual stages while filling the gaps that remain.
 **Why this matters now.** Agent commerce is moving from prototype to production. Google’s AP2, donated to the FIDO Alliance in April 2026, is establishing the payment-mandate envelope. Coinbase’s x402 is settling per-request micropayments. ERC-8004 is formalising on-chain agent identity in the Ethereum Foundation pipeline. ERC-8183 adds an EVM-native escrow primitive for job-style transactions. A2A is becoming the default capability discovery pattern. Each is real, deployed, and useful. Each addresses one slice. None of them, individually or together, specifies a complete commerce lifecycle with the discipline a regulated flow requires.
 Meanwhile the closed alternatives are consolidating fast: full-stack agent platforms are building their own identity, payment, reputation, and dispute systems behind operator-owned APIs. If a usable lifecycle does not emerge from the public-chain ecosystem soon, the agent economy ends up looking like the app stores, with two or three platforms collecting rents on everything that moves. DACS is the Demos contribution to keeping the lifecycle on public infrastructure.
@@ -31,10 +41,22 @@ DACS follows three principles.
 **Stated substrate requirements.** Each new DACS standard names the substrate capability it depends on. The capability is the requirement, stated in the spec. Which substrate provides it is operational detail. This keeps DACS substrate-agnostic in specification while staying honest about what the new standards actually need underneath.
 Three things follow:
 
+- **Adopters keep what they already have.** A seller using existing identity, payment, and credential tooling does not abandon any of it to adopt DACS.
+- **DACS is replaceable in parts.** If a better identity standard supersedes a pre-existing standard, the DACS standard referencing identity updates its pointers and the rest of the stack is unaffected.
+- **DACS is substrate-portable in principle.** The substrate requirements are explicit. Any substrate that implements them can host a DACS implementation.
+
 ## 3. The five stages
 
 Every agent-to-agent transaction, whether a $5 data lookup or a $5M institutional swap, passes through five stages:
+
+- **Identify** — who is transacting, what is being offered, and how do they find each other.
+- **Vet** — each party verifies the other’s claims against authoritative sources.
+- **Negotiate** — parties arrive at agreed terms (price, scope, deadlines, deliverable spec) and commit to them.
+- **Settle** — value is exchanged and the deliverable is provided.
+- **Verify** — the complete transaction is anchored as an audit artifact; reputation is derived from it.
+
 DACS is one standard per stage. Each standard either fully composes existing open standards for that stage, or specifies what is needed to close the gaps. Phase types specific to a stage (e.g. negotiate-rfq, pay-cross-chain-htlc) belong to that stage’s standard.
+
 | Standard | Stage | Scope |
 | --- | --- | --- |
 | DACS-1 | Identify | Agent identity, signed and anchored service listings, discovery (.well-known/agent.json extension and off-chain catalog) |
@@ -48,6 +70,7 @@ The stages are sequential within a transaction. The standards version independen
 ## 4. Per-stage summary
 
 A compact summary of what each stage composes, what it adds, and which substrate capabilities it depends on. Chapters 6–10 expand each row in full.
+
 | Stage | Existing standards used | DACS additions | Substrate capabilities |
 | --- | --- | --- | --- |
 | Identify (DACS-1) | ERC-8004, W3C DIDs, A2A, authority and platform identifiers | Identity claim reference scheme; identity bundle schema; listing schema; .well-known extension; catalog API | SR-2; SR-1 optional |
@@ -61,6 +84,7 @@ Three stages compose substantially with existing standards (Identify, Vet, Settl
 ## 5. Substrate capabilities
 
 Every DACS standard names the substrate capability it depends on. The capabilities below are the complete set; each per-stage chapter cites a subset by ID.
+
 | ID | Capability | Description | Used by |
 | --- | --- | --- | --- |
 | SR-1 | Cross-substrate identity aggregation | Optional. A composition primitive binding one root key to multiple sub-identities — per-substrate keys, verified Web2 identifiers, authority-issued identifiers, platform accounts — presented under a single signature. Cross-Context Identities (CCI) is the Demos implementation. | DACS-1, DACS-5 |
@@ -80,19 +104,48 @@ A mapping of which substrate primitives are live today, what extensions are need
 
 ### 6.1 SR-1 — Cross-Context Identities (CCI)
 
+- 🟢 8 native contexts in production: xm, web2, pqc, ud, nomis, humanpassport, ethos, tlsn. Stored in GCRMain.identities. SDK methods getXmIdentities, getWeb2Identities, addXmIdentity, addTwitterIdentity, etc. SIWD (wallet_signIn, EIP-4361-style) for presentation.
+- 🟡 6 new CCI contexts for regulatory identity: lei, finra-crd, sam-uei, fedramp, naics, cmmc. Each needs a GCR routine following the pattern of the existing 8 reference implementations.
+- 🔵 ERC-8004 token references; W3C DIDs (carried via claim references; verified through DACS-2).
+
 **Stor-backed credentials.** The stor-cred:<type>:<id> scheme convention is the extensibility surface for future credentials not yet promoted to native CCI contexts. **OFAC-clear is not a CCI context** — it is a per-session freshness check that lives only in DACS-2’s CompositeVerificationRecord (it is a check, not a stable identity claim).
 
 ### 6.2 SR-2 — Storage Programs
+
+- 🟢 StorageProgramData per SDK at kynesyslabs/sdks/src/storage/StorageProgram.ts. Content-addressed at stor-{sha256(…)}. 128 KB cap. JSONB-backed in GCR_Main.data. ACL modes (private/public/restricted). Provenance via createdByTx, lastModifiedByTx, interactionTxs.
+- 🟡 Native multi-party Storage Program signature helper so buyer + seller co-signature of a closed AttestationBundle is a single transaction — current SDK supports owner-signed writes only.
 
 **Logical vs native addresses (applies universally).** Throughout this document, addresses of the form dacs1:…, dacs2:…, dacs3:…, dacs4:…, dacs5:… are *logical* addresses: substrate-independent, human-readable, stable identifiers the protocol reasons about. Each substrate maps them to its native addressing under a deterministic rule. On Demos the mapping is native_address := "stor-" + sha256(logical_address); the colon-containing logical string is not used directly as a StorageProgram name (Demos does not permit colons in names). Other substrates substitute their own mapping; the requirement is that the mapping is deterministic, one-to-one, and reversible by any party knowing the logical pattern. Implementations on a given substrate MUST anchor at the native address and MAY carry the logical address as descriptive metadata; consumers MUST resolve the native address from the logical pattern before reading.
 
 ### 6.3 SR-3 — DAHR (Data Agnostic HTTPS Relay)
 
+- 🟢 Live via demos.web2.createDahr() → dahr.startProxy(…). Returns IWeb2Result with responseHash, responseHeadersHash, txHash. One on-chain web2Request tx per call. GCR routines per CCI context handle native-claim validation (including tlsn).
+- 🟡 DAHR signing-model clarification — current docs show **hash commitments only**, with no validator signature over the response body. v1 treats this as a **consensus-anchored hash commitment** model. If Kynesys upgrades DAHR to validator-sign the response body itself, DACS-2 v1.1 may strengthen the claim.
+- 🟡 CompositeVerificationRecord Storage Program schema.
+- 🟡 oauth-attested method depends on a Demos-side OAuth attester. If not built, the method is 🔵 third-party.
+- 🔵 W3C Verifiable Credentials, TLSNotary (external proof library — distinct from the 🟢 cci-tlsn:* native context), zkTLS (Reclaim, Pluto), ACME challenges for domain-tls-control.
+
 ### 6.4 SR-4 — L2PS (Layer-2 Privacy Subnets)
+
+- 🟢 new l2ps.L2PS() / new l2ps.L2PS(rsaPrivateKey). DemosWork orchestration with WorkStep (id, context, content, output, depends_on, critical), BaseOperation, ConditionalOperation (SDK module @kynesyslabs/demosdk/demoswork). Storage Programs for agreement-hash anchoring and sealed-envelope commitments.
+- 🟡 CCI-keyed L2PS membership — bind subnet membership to CCI primary claim so channel signatures map to the same identity that holds value on-chain. Current API is RSA-key-based.
+- 🟡 L2PS channel message envelope API — sequence numbering, signature export, transcript export.
+- 🟡 Encrypted transcript anchoring helper (for terms.transcriptDisclosurePolicy: "encrypted-anchored-required").
+- 🔵 ERC-8183 escrow primitive (Ethereum, draft); institutional RFQ desks’ off-chain systems composed as L2PS-equivalent transport.
 
 **DACS-3 phase types are realised as DemosWork WorkSteps.** Each negotiation pattern compiles to a sequence of WorkSteps with context: "xm" | "web2" | "native" and DACS-defined content shapes.
 
 ### 6.5 SR-5 — Native Bridges / Liquidity Tanks
+
+- 🟢 LiquidityTank.sol (audited; 600+ lines; rotating 2/3 multisig + 15-day emergency recovery) deployed on **ETH Sepolia** (0x7AE3A8B899BE0D9E9de51b81a9912C0CEE128d88) and **Polygon Amoy** (0x57cA16EeE7fbeC69BFD46E4806B5d91e173dd600).
+- 🟢 SDK type BridgeOperation at kynesyslabs/sdks/src/bridge/nativeBridgeTypes.ts. RPC handler at kynesyslabs/node/src/libs/network/manageNativeBridge.ts. Tank addresses config at kynesyslabs/node/config/tankAddresses.json. **bridge_id** (16-char hash) is the canonical end-to-end tracking handle.
+- 🟢 Trust model: **operated by a rotating Demos validator shard under 2/3 BFT multisig with 15-day deployer emergency recovery.** Not "no operator" — the operator is the substrate itself.
+- 🟢 MVP scope: USDC only; EVM-source; unidirectional. Gasless bridge operations (contract reimburses user gas from subsidy pool). BridgeOperation.status lifecycle: "empty" → "pending" → "completed" | "failed". XM SDK single-chain transfers (preparePay, prepareTransfer, prepareTransfers) for non-bridge rails. Storage Programs for deliver-storage-program and entitlement records.
+- 🟡 Phase 2: Solana tank programs (treasury Phases 3.3–3.4, SolanaAddressManagement class, vault management).
+- 🟡 Phase 3: Bidirectional + cross-chain shard rotation.
+- 🟡 Phase 4: Production polish + executeBridgeOperations consensus logic + cross-chain bridge message verification + emergency recovery mechanisms. Additional EVM tank deployments (currently 4 placeholder entries in tankAddresses.json). Mainnet deployments. Non-USDC stablecoin support. Native EntitlementRecord registry (optional; Stor-backed is fine for v1).
+- 🔵 AP2 (Google → FIDO Alliance, April 2026) — DACS-4 carries as a rail envelope. x402 (Coinbase + Cloudflare + Anthropic) — DACS-4 carries as a rail envelope. Rubic Bridge (third-party DEX aggregator, wrapped by SDK at @kynesyslabs/demosdk/bridge) — alternative cross-chain rail with explicit third-party trust disclosure.
+- 🔵 **HTLC contracts (generic atomic-swap pattern)** — pay-cross-chain-htlc is a first-class supported rail in DACS-4 v1. **The reference implementation in agent-commerce-demo uses HTLCs today for the fx-rfq cross-chain settlement** (929 LOC: real Solana Anchor program + Base Sepolia EVM HTLC contract; lock/reveal/refund implemented end-to-end). This predates Native Bridges Phase 1 deployment. The reference implementation will migrate to pay-cross-chain-liquidity-tank as Phase 1 stabilises; until then both rails are documented honestly. ERC-20, SPL (standard token interfaces). ERC-8183 escrow (proposed; future rail).
 
 **v1 cross-chain settlement scope.** pay-cross-chain-liquidity-tank is supported **only** for the rails currently live in tankAddresses.json (ETH Sepolia, Polygon Amoy; USDC; unidirectional EVM source). All other tank rails in the registry are 🟡 to-add and will unlock as Native Bridges Phase 2–4 ship. pay-cross-chain-htlc is the path the reference implementation runs today; v1 keeps both first-class.
 
@@ -102,16 +155,82 @@ Terms used in more than one per-stage chapter are defined here once. Per-stage c
 
 ### 7.1 Claim references and identity
 
+- **Claim.** A fact a party asserts about itself (e.g., "this agent’s FINRA CRD is 12345").
+- **Claim reference.** A typed identifier referring to the external system that authoritatively holds a claim. The reference is of the form <scheme>:<identifier>[?<parameters>]. Grammar and v1 registry defined in chapter 6 (DACS-1).
+- **ClaimReference (type).** The typed equivalent of a claim reference used in JSON schemas throughout the spec.
+- **Primary identity claim.** The claim within a bundle that serves as the canonical identifier of the party for reputation, audit, and addressing purposes. Determined by the presentedBy field of the bundle and the primaryClaimSelector of the requirement.
+- **Identity bundle.** An ordered set of claims a party presents about itself, each independently verifiable, plus a presentation signature. Full schema in chapter 6 (DACS-1).
+
 ### 7.2 Anchoring and signing
+
+- **Anchored.** Stored on the substrate such that an anchor reference (substrate-native pointer plus content hash) is sufficient for any party with substrate access to retrieve the canonical content and verify integrity. Realized by SR-2.
+- **Signed.** Carrying an Ed25519 (or equivalent) signature over the RFC 8785 canonical-JSON serialisation of the document’s signed scope, where the signed scope is all fields except the signature field itself.
+- **Canonical form.** RFC 8785 JSON Canonicalization Scheme (JCS) serialisation of the document with the signature(s) field omitted.
+- **Content hash.** sha256 hex of the canonical form.
 
 ### 7.3 Verification and evidence
 
+- **Verification reference.** A reference to a DACS-2 VerifyResult that attests a claim against its authority.
+- **AttestationRef.** A reference to an anchored attestation: anchor locator + content hash + (optional) signer. Defined in chapter 7 (DACS-2).
+- **VerifyResult.** The uniform record produced by every DACS-2 verification method. Defined in chapter 7.
+- **VerifyResultRef.** A reference to an anchored VerifyResult: anchor + contentHash + recipeVersion (recipeVersion is load-bearing for staleness checks).
+- **Composite verification record.** The anchored document produced by the vet-credentials phase, aggregating freshness checks, supplementary signals, and deal-specific claims. Defined in chapter 7.
+
 ### 7.4 Session, pipeline, and phases
+
+- **Listing.** A signed, anchored JSON document conforming to chapter 6; the canonical contract for a transaction.
+- **Pipeline.** The ordered sequence of PhaseStep entries declared in a listing.
+- **Phase / PhaseStep.** A single unit of work in the pipeline; kind names a closed set defined across DACS-2..5.
+- **Session.** A per-transaction lifecycle from Identify through Verify.
+- **Session record.** The live state document for an active session. Held off-chain by the orchestrator; the bundle is the on-chain artifact. Defined in chapter 10 (DACS-5).
+- **Attestation bundle.** The frozen end-of-session artifact, anchored via SR-2. The audit unit. Defined in chapter 10.
+- **Agreement document.** The canonical signed JSON document produced by a negotiation pattern. Defined in chapter 8 (DACS-3).
+- **SettlementEvidence.** The uniform record produced by every DACS-4 payment and delivery phase. Defined in chapter 9.
 
 ### 7.5 Shared phase-handler types
 
 Every phase handler in the stack consumes a SessionContext and returns a PhaseHandlerResult. The full TypeScript declarations:
-type SessionContext = {jobId: stringlistingRef: { listingId: string; version: number; contentHash: string }recipeRegistryVersion: number // DACS-2 registry pinned at session startrailRegistryVersion: number // DACS-4 registry pinned at session startparties: SessionParty[]priorPhaseOutputs: Record<string, unknown> // accumulated contextDelta from completed phasessigner: SubstrateSigner // substrate-specific signing capabilitystartedAt: number // unix ms}type PhaseHandlerResult = {ok: booleanreason?: string // when !oktxRefs?: ChainTxRef[] // chain references produced by this invocationexplorerUrls?: string[] // human-readable handles, parallel to txRefscontextDelta?: Record<string, unknown>// merged into SessionRecord.PhaseEntry.contextDeltaattestationRef?: AttestationRef // anchored evidence referenceerrorClass?: "permanent" | "transient" | "counterparty" | "substrate" | "settlement-atomicity"}
+
+```
+type SessionContext = {
+
+  jobId: string
+
+  listingRef: { listingId: string; version: number; contentHash: string }
+
+  recipeRegistryVersion: number             // DACS-2 registry pinned at session start
+
+  railRegistryVersion: number               // DACS-4 registry pinned at session start
+
+  parties: SessionParty[]
+
+  priorPhaseOutputs: Record<string, unknown> // accumulated contextDelta from completed phases
+
+  signer: SubstrateSigner                   // substrate-specific signing capability
+
+  startedAt: number                         // unix ms
+
+}
+
+type PhaseHandlerResult = {
+
+  ok: boolean
+
+  reason?: string                           // when !ok
+
+  txRefs?: ChainTxRef[]                     // chain references produced by this invocation
+
+  explorerUrls?: string[]                   // human-readable handles, parallel to txRefs
+
+  contextDelta?: Record<string, unknown>    // merged into SessionRecord.PhaseEntry.contextDelta
+
+  attestationRef?: AttestationRef           // anchored evidence reference
+
+  errorClass?: "permanent" | "transient" | "counterparty" | "substrate" | "settlement-atomicity"
+
+}
+```
+
 Conformance: phase handlers MUST accept a SessionContext and return a PhaseHandlerResult. On ok: true the orchestrator merges contextDelta into the corresponding PhaseEntry and records txRefs in the session event log; on ok: false the orchestrator classifies the failure per errorClass and applies the retry policy in chapter 10.
 
 ### 7.6 Closed registries — v1 scope
@@ -122,8 +241,19 @@ The v1 set of identity schemes (DACS-1), verification methods (DACS-2), negotiat
 
 Every signature in DACS — across DACS-1 (listings, revocations), DACS-2 (VerifyResults, composite records, recipes), DACS-3 (channel messages, agreements, commitments), DACS-4 (settlement evidence, amendments, rails, entitlements), and DACS-5 (bundles, ratings) — MUST be computed over a domain-separated payload. The domain separator prevents cross-protocol signature replay: a signature produced under one artifact kind MUST NOT validate as a signature under any other artifact kind, even when the underlying hash bytes coincide.
 The canonical payload to be signed is:
-signed_bytes := domain_separator || artifact_hashdomain_separator := "dacs-" || artifact_kind || ":v" || version_tag || ":"artifact_hash:= the sha256 hex of the RFC 8785 canonical form of thesigned document, with the signature field(s) omitted
+
+```
+signed_bytes := domain_separator || artifact_hash
+
+domain_separator := "dacs-" || artifact_kind || ":v" || version_tag || ":"
+
+artifact_hash    := the sha256 hex of the RFC 8785 canonical form of the
+
+                    signed document, with the signature field(s) omitted
+```
+
 The v1 registry of domain separators is closed:
+
 | Artifact | Domain separator | Defined in |
 | --- | --- | --- |
 | DACS-1 listing | "dacs-listing:v1:" | §6.3.4 |
@@ -149,6 +279,7 @@ The v1 registry of domain separators is closed:
 ## 8. Composed open standards
 
 DACS composes with the following open standards. Each per-stage chapter cites the relevant entries by name; backwards-compatibility implications are stated per-stage.
+
 | Standard | Composed by | Touchpoint |
 | --- | --- | --- |
 | ERC-8004 Trustless Agents | DACS-1, DACS-5 | Identity scheme; optional reputation publication surface |
@@ -165,11 +296,18 @@ DACS composes with the following open standards. Each per-stage chapter cites th
 | ACME / RFC 8555 | DACS-2 | domain-tls-control method |
 
 ## Chapter 6 — DACS-1: Identify
+
 **Stage:** Identify (1st of 5). **Status:** Draft (part of DACS v0.1). **Depends on:** SR-1 (optional), SR-2 (required); composes with ERC-8004, W3C DIDs, A2A. **Used by:** DACS-2..5.
 
 ### 6.1 Abstract
 
 DACS-1 specifies how an agent is identified, what it offers, and how it is found. It defines three artifacts and a discovery extension:
+
+- An **identity claim reference scheme** — a typed reference to an identifier in some external system (did:…, erc8004:…, lei:…, domain:…, platform:google:…), optionally paired with a verification method drawn from DACS-2.
+- An **identity bundle schema** — an ordered set of claims a party presents about itself, each independently verifiable, plus a listing-side requirement schema declaring which bundles a listing will accept.
+- A **service listing schema** — a signed, anchored JSON document declaring an agent’s identity-bundle requirement, offering, deliverable, the DACS pipeline of stages to execute, accepted payment rails, and terms. The listing is the canonical contract for any transaction against this seller.
+- A **discovery extension** — an extension to .well-known/agent.json declaring a listings index URL, plus an off-chain catalog API for indexed search across listings.
+
 Identity is treated as a bundle of independently-verified claims rather than a single rooted identifier. This lets the same standard cover micropayments (a signing key is enough) and regulated trades (LEI + KYB + FINRA + OFAC) without changing structure. The substrate MUST provide anchored storage for listings and bundles (SR-2); single-signature bundle convenience (SR-1) is OPTIONAL and supplements but does not replace per-claim verification.
 
 ### 6.2 Motivation
@@ -186,11 +324,26 @@ The unification mechanism is **claims, not roots**. A listing requires a bundle 
 A claim reference identifies a fact about a party that can in principle be verified against an external system.
 **Grammar**
 A claim reference MUST conform to:
-ClaimReference := Scheme ":" Identifier [ "?" Parameters ]Scheme := scheme-start ( scheme-cont )*scheme-start := lowercase-asciischeme-cont:= lowercase-ascii | digit | "-"Identifier := scheme-specific, non-empty, NFC-normalized Unicode (printable ASCII recommended)Parameters := key1=value1 [ "&" key2=value2 ]*
+
+```
+ClaimReference   := Scheme ":" Identifier [ "?" Parameters ]
+
+Scheme           := scheme-start ( scheme-cont )*
+
+scheme-start     := lowercase-ascii
+
+scheme-cont      := lowercase-ascii | digit | "-"
+
+Identifier       := scheme-specific, non-empty, NFC-normalized Unicode (printable ASCII recommended)
+
+Parameters       := key1=value1 [ "&" key2=value2 ]*
+```
+
 A Scheme MUST start with a lowercase ASCII letter and MAY include lowercase ASCII letters, digits, and hyphens thereafter. Underscores are reserved for future use and MUST NOT appear in v1 scheme names. Parsers MUST treat Scheme case-insensitively on read and SHOULD emit lowercase on write. Identifier is treated per-scheme; the per-scheme rules below specify canonicalisation. The ?<parameters> suffix carries scheme-specific qualifiers (e.g. cci-xm:evm:mainnet:0x…?jurisdiction=US). Unknown parameters MUST be ignored by readers, MUST NOT cause rejection, and MUST NOT be silently stripped when forwarding the reference.
 **Registered schemes (v1) — two-axis registry**
 The v1 scheme registry is organised along two axes: (a) **CCI-native** schemes — one per Demos CCI context, with the identifier directly addressing the relevant slot in GCRMain.identities; (b) **Stor-backed credential** schemes — schemes whose verification result is anchored as a Storage Program written by a DACS-2 attestation.
 **CCI-native schemes** — map to Demos CCI contexts (8 in production today + 6 to-add for DACS-1 v1):
+
 | Scheme | CCI context | Identifier shape | Status |
 | --- | --- | --- | --- |
 | cci-xm:<chain>:<subchain>:<address> | xm | per chain (EVM hex, Solana base58, …) | Done |
@@ -215,6 +368,7 @@ For credentials Demos has not yet promoted to a native CCI context — future re
 stor-cred:<credential-type>:<identifier>
 The Storage Program at stor-{sha256(subject_cci + ":" + credential-type + ":" + identifier)} holds the latest DACS-2 VerifyResult for that (subject, credential) tuple. This is the extensibility mechanism: when a new credential type is needed and there is no native CCI context for it, listings can require a stor-cred:*scheme without waiting for Demos to add a context. When a stor-cred:* scheme sees broad enough use, it SHOULD graduate to a native CCI context per the v2 scheme-addition process.
 **Composition and low-stakes schemes**
+
 | Scheme | Identifier shape | Use |
 | --- | --- | --- |
 | did:… | per W3C DID method | external decentralised identifier; resolution per method |
@@ -231,7 +385,47 @@ The v1 scheme registry is closed. New schemes are added in subsequent versions o
 
 An identity bundle is an ordered set of claims a party presents about itself, with verification metadata, plus a presentation signature.
 **Schema**
-type IdentityBundle = {bundleVersion: "1"presentedBy: ClaimReference// primary identity claim within `claims`presentedAt: number// unix millisecondsclaims: BundleClaim[]// non-empty; order is meaningfulpresentation: PresentationSignature}type BundleClaim = {ref: ClaimReferenceverifiedBy?: VerifyResultRef // DACS-2 result referenceissuedAt?: number// unix ms when the verification was performedexpiresAt?: number // unix ms when verifiedBy becomes stalemetadata?: Record<string, unknown> // scheme-specific}type PresentationSignature =| { kind: "siwd"; message: string; signature: string; address: string }| { kind: "per-claim"; signatures: { ref: ClaimReference; signature: string }[] }| { kind: "session-key"; key: string; signature: string; rootBinding?: string }| { kind: "sr1-root"; rootClaim: ClaimReference; aggregateSignature: string }
+
+```
+type IdentityBundle = {
+
+  bundleVersion: "1"
+
+  presentedBy: ClaimReference          // primary identity claim within `claims`
+
+  presentedAt: number                  // unix milliseconds
+
+  claims: BundleClaim[]                // non-empty; order is meaningful
+
+  presentation: PresentationSignature
+
+}
+
+type BundleClaim = {
+
+  ref: ClaimReference
+
+  verifiedBy?: VerifyResultRef         // DACS-2 result reference
+
+  issuedAt?: number                    // unix ms when the verification was performed
+
+  expiresAt?: number                   // unix ms when verifiedBy becomes stale
+
+  metadata?: Record<string, unknown>   // scheme-specific
+
+}
+
+type PresentationSignature =
+
+  | { kind: "siwd"; message: string; signature: string; address: string }
+
+  | { kind: "per-claim"; signatures: { ref: ClaimReference; signature: string }[] }
+
+  | { kind: "session-key"; key: string; signature: string; rootBinding?: string }
+
+  | { kind: "sr1-root"; rootClaim: ClaimReference; aggregateSignature: string }
+```
+
 SIWD is the preferred presentation. The siwd shape matches the return of provider.request({ method: "wallet_signIn", params: […] }) on the Demos wallet — { message, signature, address } — and is the same EIP-4361-style envelope. Verifiers MUST validate the SIWD signature against the bundle’s primary claim’s key.
 **sr1-root presentation.** When SR-1 cross-substrate identity aggregation is available, a single root key may co-sign every claim in the bundle under an SR-1 aggregate signature, producing one signature that covers the whole bundle. rootClaim names the SR-1 root identity (a CCI primary claim on Demos); aggregateSignature is the SR-1 aggregate signature over the domain-separated payload (§6.3.2 below). Verifiers MUST resolve the root key via SR-1 and verify the aggregate signature against the bundle hash. sr1-root is the natural presentation for a party self-binding a single document (a seller signing their own listing, an orchestrator binding multiple per-substrate addresses under one identity) because it avoids the per-claim signature overhead and produces one cryptographic artifact that the rest of the stack can reason about.
 **Domain-separated payload.** All four presentation kinds sign the same canonical payload:
@@ -253,10 +447,82 @@ A conforming bundle reader MUST: (BR-1) recompute the bundle hash from canonical
 #### 6.3.3 Bundle requirement schema
 
 A listing declares which bundles it will accept.
-type BundleRequirement = {requirementVersion: "1"required: ClaimRequirement[] // all MUST be satisfiedoneOf?: ClaimRequirement[][] // at least one inner group MUST be satisfiedpreferredPresentation?: "sr1-root" | "per-claim" | "session-key" | "any"primaryClaimSelector?: string// scheme whose identifier MUST be `presentedBy`}type ClaimRequirement = {scheme: string // e.g. "lei"verificationRequired: booleanmaxAge?: number// seconds; overrides recipe defaultparameters?: Record<string, unknown> // scheme-specific}
+
+```
+type BundleRequirement = {
+
+  requirementVersion: "1"
+
+  required: ClaimRequirement[]         // all MUST be satisfied
+
+  oneOf?: ClaimRequirement[][]         // at least one inner group MUST be satisfied
+
+  preferredPresentation?: "sr1-root" | "per-claim" | "session-key" | "any"
+
+  primaryClaimSelector?: string        // scheme whose identifier MUST be `presentedBy`
+
+}
+
+type ClaimRequirement = {
+
+  scheme: string                       // e.g. "lei"
+
+  verificationRequired: boolean
+
+  maxAge?: number                      // seconds; overrides recipe default
+
+  parameters?: Record<string, unknown> // scheme-specific
+
+}
+```
+
 **Matching algorithm**
 A reader MUST evaluate a candidate IdentityBundle against a BundleRequirement using the following deterministic algorithm:
-match(bundle, requirement):1. For each cr in requirement.required:if NOT find_claim(bundle, cr): return REJECT("missing required: <cr.scheme>")2. For each group in (requirement.oneOf or []):any_satisfied := falsefor each cr in group:if find_claim(bundle, cr): any_satisfied := true; breakif NOT any_satisfied: return REJECT("oneOf group unsatisfied")3. If requirement.primaryClaimSelector is set:if bundle.presentedBy.scheme != requirement.primaryClaimSelector: return REJECT4. If requirement.preferredPresentation is set AND != "any":if bundle.presentation.kind != requirement.preferredPresentation: return WARN, accept5. return ACCEPTfind_claim(bundle, cr):for each c in bundle.claims:if c.ref.scheme != cr.scheme: continueif cr.verificationRequired AND (c.verifiedBy missing OR resolution fails OR decision != "pass"): continueif cr.maxAge AND (now - c.issuedAt > cr.maxAge): continueif cr.parameters AND NOT scheme_specific_match(c, cr.parameters): continuereturn creturn null
+
+```
+match(bundle, requirement):
+
+  1. For each cr in requirement.required:
+
+       if NOT find_claim(bundle, cr): return REJECT("missing required: <cr.scheme>")
+
+  2. For each group in (requirement.oneOf or []):
+
+       any_satisfied := false
+
+       for each cr in group:
+
+         if find_claim(bundle, cr): any_satisfied := true; break
+
+       if NOT any_satisfied: return REJECT("oneOf group unsatisfied")
+
+  3. If requirement.primaryClaimSelector is set:
+
+       if bundle.presentedBy.scheme != requirement.primaryClaimSelector: return REJECT
+
+  4. If requirement.preferredPresentation is set AND != "any":
+
+       if bundle.presentation.kind != requirement.preferredPresentation: return WARN, accept
+
+  5. return ACCEPT
+
+find_claim(bundle, cr):
+
+  for each c in bundle.claims:
+
+    if c.ref.scheme != cr.scheme: continue
+
+    if cr.verificationRequired AND (c.verifiedBy missing OR resolution fails OR decision != "pass"): continue
+
+    if cr.maxAge AND (now - c.issuedAt > cr.maxAge): continue
+
+    if cr.parameters AND NOT scheme_specific_match(c, cr.parameters): continue
+
+    return c
+
+  return null
+```
+
 scheme_specific_match is defined per scheme in DACS-2 recipes. Where parameters are unrecognised, readers MUST treat the requirement as unmatched (not silently passed).
 **Failure mode and selector semantics**
 A BundleRequirement that does not match MUST cause the buyer or seller to refuse to advance the transaction past the Vet stage. v1 specifies no downgrade or renegotiation path. The primaryClaimSelector controls which claim’s identifier is used as the reputation key in DACS-5 and the counterparty identifier of record for audit purposes. Listings that handle regulated flows SHOULD set primaryClaimSelector to an authority-issued scheme (e.g., lei) to ensure reputation accumulates against a stable, externally-verifiable identifier rather than a session key.
@@ -265,10 +531,158 @@ A BundleRequirement that does not match MUST cause the buyer or seller to refuse
 
 The listing is the canonical contract for a transaction.
 **Schema**
-type Listing = {// VersioningdacsVersion: "1"listingVersion: number // monotonic per listingId, starts at 1listingId: string// unique per seller; URL-safe ASCII; max 128 charsrequiredCapabilities?: SubstrateRequirement[]// Sellerseller: {identity: IdentityBundle // seller's own bundledisplayName: string// max 200 charspublicEndpoint?: string// optional HTTPS endpoint}// Offeringoffering: {title: string// max 200 charsdescription: string// max 2000 charscategory: string // dot-delimited (e.g. "data.finance.fx")tags: string[] // max 16 tags, max 32 chars eachdeliverable: DeliverableSpec // per DACS-4extendedDescriptionUrl?: stringextendedDescriptionHash?: string}// Buyer requirementbuyerRequirement: BundleRequirement// Pipeline of phases to execute, per DACS-3/4/5pipeline: PhaseStep[]// non-empty, ordered// Pricing and accepted rails, per DACS-4pricing: PricingSpecacceptedRails?: PaymentRailRef[]// OPTIONAL: required and non-empty IF pipeline contains any pay-* phase// Termsterms: ListingTerms// Validity windowvalidity: {notBefore: number// unix msnotAfter?: number// unix ms; absent => no expiry}// Listing-level signaturesignature: ListingSignature}type SubstrateRequirement =| "SR-1" | "SR-2" | "SR-3" | "SR-4" | "SR-5"type ListingTerms = {termsOfServiceUrl?: stringtermsOfServiceHash?: stringjurisdictions?: string[] // ISO 3166-1 alpha-2 codesconflictOfLawsRule?: "buyer-jurisdiction" | "seller-jurisdiction" | "rule-ref:<uri>"deadlineSecAfterCommit?: numbercancellationPolicy?: "none" | "pre-commit" | "with-fee"retentionYears?: numbertranscriptDisclosurePolicy?: "none" | "encrypted-anchored-recommended" | "encrypted-anchored-required"}type ListingSignature = {algorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"signer: ClaimReference // MUST appear in seller.identity.claimsvalue: string// signature over the canonical bundle hash}
+
+```
+type Listing = {
+
+  // Versioning
+
+  dacsVersion: "1"
+
+  listingVersion: number               // monotonic per listingId, starts at 1
+
+  listingId: string                    // unique per seller; URL-safe ASCII; max 128 chars
+
+  requiredCapabilities?: SubstrateRequirement[]
+
+  // Seller
+
+  seller: {
+
+    identity: IdentityBundle           // seller's own bundle
+
+    displayName: string                // max 200 chars
+
+    publicEndpoint?: string            // optional HTTPS endpoint
+
+  }
+
+  // Offering
+
+  offering: {
+
+    title: string                      // max 200 chars
+
+    description: string                // max 2000 chars
+
+    category: string                   // dot-delimited (e.g. "data.finance.fx")
+
+    tags: string[]                     // max 16 tags, max 32 chars each
+
+    deliverable: DeliverableSpec       // per DACS-4
+
+    extendedDescriptionUrl?: string
+
+    extendedDescriptionHash?: string
+
+  }
+
+  // Buyer requirement
+
+  buyerRequirement: BundleRequirement
+
+  // Pipeline of phases to execute, per DACS-3/4/5
+
+  pipeline: PhaseStep[]                // non-empty, ordered
+
+  // Pricing and accepted rails, per DACS-4
+
+  pricing: PricingSpec
+
+  acceptedRails?: PaymentRailRef[]      // OPTIONAL: required and non-empty IF pipeline contains any pay-* phase
+
+  // Terms
+
+  terms: ListingTerms
+
+  // Validity window
+
+  validity: {
+
+    notBefore: number                  // unix ms
+
+    notAfter?: number                  // unix ms; absent => no expiry
+
+  }
+
+  // Listing-level signature
+
+  signature: ListingSignature
+
+}
+
+type SubstrateRequirement =
+
+  | "SR-1" | "SR-2" | "SR-3" | "SR-4" | "SR-5"
+
+type ListingTerms = {
+
+  termsOfServiceUrl?: string
+
+  termsOfServiceHash?: string
+
+  jurisdictions?: string[]             // ISO 3166-1 alpha-2 codes
+
+  conflictOfLawsRule?: "buyer-jurisdiction" | "seller-jurisdiction" | "rule-ref:<uri>"
+
+  deadlineSecAfterCommit?: number
+
+  cancellationPolicy?: "none" | "pre-commit" | "with-fee"
+
+  retentionYears?: number
+
+  transcriptDisclosurePolicy?: "none" | "encrypted-anchored-recommended" | "encrypted-anchored-required"
+
+}
+
+type ListingSignature = {
+
+  algorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"
+
+  signer: ClaimReference               // MUST appear in seller.identity.claims
+
+  value: string                        // signature over the canonical bundle hash
+
+}
+```
+
 DeliverableSpec, PricingSpec, and PaymentRailRef are normatively defined in chapter 9 (DACS-4). PhaseStep is defined below. A listing MUST use types that conform to the cited specs.
 **PhaseStep schema**
-type PhaseStep = {kind: PhaseType // closed v1 set belowparameters?: Record<string, unknown>// per-`kind` shape defined in the owning spec}type PhaseType =// DACS-2| "vet-credentials"// DACS-3| "negotiate-fixed-price" | "negotiate-rfq" | "negotiate-sealed-envelope" | "commit-agreement"// DACS-4| "pay-evm-erc20" | "pay-solana-spl"| "pay-cross-chain-htlc" | "pay-cross-chain-liquidity-tank"| "pay-ap2" | "pay-x402"| "deliver-storage-program" | "deliver-entitlement" | "deliver-attested-payload"// DACS-5| "rate"
+
+```
+type PhaseStep = {
+
+  kind: PhaseType                           // closed v1 set below
+
+  parameters?: Record<string, unknown>      // per-`kind` shape defined in the owning spec
+
+}
+
+type PhaseType =
+
+  // DACS-2
+
+  | "vet-credentials"
+
+  // DACS-3
+
+  | "negotiate-fixed-price" | "negotiate-rfq" | "negotiate-sealed-envelope" | "commit-agreement"
+
+  // DACS-4
+
+  | "pay-evm-erc20" | "pay-solana-spl"
+
+  | "pay-cross-chain-htlc" | "pay-cross-chain-liquidity-tank"
+
+  | "pay-ap2" | "pay-x402"
+
+  | "deliver-storage-program" | "deliver-entitlement" | "deliver-attested-payload"
+
+  // DACS-5
+
+  | "rate"
+```
+
 Per-kind parameter shapes are normative in the owning chapter: vet-credentials — no parameters; negotiate-fixed-price — no parameters; negotiate-rfq — {maxTurns, timeoutSec, channelSubnet?} per chapter 8; negotiate-sealed-envelope — {commitDeadline, revealWindow, selectionRule, channelSubnet?} per chapter 8; commit-agreement — no parameters; pay-*— {rail: string} (railId) per chapter 9; deliver-* — no parameters (details come from the listing’s DeliverableSpec); rate — optional {required?: boolean} per chapter 10.
 **Canonical serialisation and signature**
 A listing’s canonical form is the RFC 8785 JCS serialisation with the signature field omitted. The listing hash is sha256(canonical_form), hex-encoded. The signature.value is computed over the domain-separated payload per chapter 7§7.7:
@@ -278,7 +692,13 @@ Verifiers MUST: recompute the canonical form, listing hash, and domain-separated
 A listing MUST be anchored using SR-2.
 **Logical address vs native address.** DACS specifies a *logical* address pattern for each artifact kind. The logical pattern for a listing is dacs1:{sellerPrimaryClaim}:{listingId}:v{listingVersion}. The logical pattern is a stable, substrate-independent identifier the protocol reasons about; it is not necessarily the literal string the substrate accepts as an address. Each substrate-binding section specifies how the logical pattern maps to the substrate’s native addressing.
 **Demos binding.** On Demos, the substrate’s StorageProgram addressing requires colon-free names and resolves writes to a sha256-derived handle of the form stor-<hex>. The Demos binding for a DACS listing therefore is:
-logical_address := "dacs1:" + sellerPrimaryClaim + ":" + listingId + ":v" + listingVersionnative_address:= "stor-" + sha256(logical_address)
+
+```
+logical_address := "dacs1:" + sellerPrimaryClaim + ":" + listingId + ":v" + listingVersion
+
+native_address  := "stor-" + sha256(logical_address)
+```
+
 Implementations on Demos MUST anchor at native_address and MAY carry logical_address as descriptive metadata on the anchored record. Consumers resolve a listing by computing native_address from logical_address and reading the StorageProgram at native_address. Other substrates substitute their own native-address mapping; the requirement is that the mapping be deterministic, one-to-one, and reversible by any party knowing the logical pattern. The anchor transaction (the on-chain write) is the canonical pointer; the substrate’s native address is the addressable handle.
 Substrates MAY use equivalent addressing schemes; the requirement is that any party with substrate access can dereference an anchor reference to the canonical content and verify the content hash.
 **Size cap.** The canonical JSON form of a listing MUST NOT exceed 16,384 bytes (16 KB). Listings exceeding the cap MUST use the extendedDescriptionUrl + extendedDescriptionHash pattern to host verbose offering descriptions externally with content-hash binding. The cap applies after canonicalisation; the actual on-chain payload size may differ slightly due to substrate encoding. On substrates whose SR-2 implementation has a smaller per-record cap, the substrate cap governs (the lesser of 16 KB and the substrate cap). Implementations MUST reject listings exceeding the applicable cap at the validation step (LR-2).
@@ -294,9 +714,89 @@ A conforming reader MUST: (LR-1) pin the (listingId, listingVersion, contentHash
 #### 6.3.5 Discovery — .well-known/agent.json extension
 
 The .well-known/agent.json document published at the agent’s domain is extended with a dacs block:
-{// ... existing A2A agent-card fields ..."dacs": {"dacsVersion": "1","listings": {"indexUrl": "https://example.com/.well-known/dacs/listings.json","indexHash": "sha256-...","anchor": {"kind": "storage-program","address": "dacs1-index:..."}},"identityClaims": ["lei:984500ABCDEF12345678","domain:example.com","erc8004:1:0x...:42"]}}
+
+```
+{
+
+  // ... existing A2A agent-card fields ...
+
+  "dacs": {
+
+    "dacsVersion": "1",
+
+    "listings": {
+
+      "indexUrl": "https://example.com/.well-known/dacs/listings.json",
+
+      "indexHash": "sha256-...",
+
+      "anchor": {
+
+        "kind": "storage-program",
+
+        "address": "dacs1-index:..."
+
+      }
+
+    },
+
+    "identityClaims": [
+
+      "lei:984500ABCDEF12345678",
+
+      "domain:example.com",
+
+      "erc8004:1:0x...:42"
+
+    ]
+
+  }
+
+}
+```
+
 **Listing index file (listings.json)**
-type ListingIndex = {indexVersion: "1"generatedAt: numberseller: ClaimReferencelistings: ListingIndexEntry[]}type ListingIndexEntry = {listingId: stringversion: numbercontentHash: stringanchor: { kind: string; locator: string }summary: {title: stringcategory: stringtags: string[]priceHint?: string}status: "active" | "revoked"}
+
+```
+type ListingIndex = {
+
+  indexVersion: "1"
+
+  generatedAt: number
+
+  seller: ClaimReference
+
+  listings: ListingIndexEntry[]
+
+}
+
+type ListingIndexEntry = {
+
+  listingId: string
+
+  version: number
+
+  contentHash: string
+
+  anchor: { kind: string; locator: string }
+
+  summary: {
+
+    title: string
+
+    category: string
+
+    tags: string[]
+
+    priceHint?: string
+
+  }
+
+  status: "active" | "revoked"
+
+}
+```
+
 The index MAY itself be anchored via SR-2; if so, the well-known block’s anchor field MUST point to it. The indexHash field in the well-known block enables clients to detect stale caches. Clients MUST cross-check each ListingIndexEntry.anchor independently before engaging with a listing; the index is for discovery convenience, not a source of truth.
 **Interoperability with A2A; update and revocation**
 The dacs block is additive. A2A-only clients ignore the dacs field. DACS-aware clients use the dacs field for listing discovery; absence of the field MUST be interpreted as "this agent does not publish DACS listings via well-known" (the agent MAY still have listings discoverable via a catalog API). Sellers update by re-publishing listings.json with new entries and updated generatedAt; the well-known indexHash MUST be updated to match. Revocation removes the entry from the index AND publishes the on-chain revocation marker.
@@ -305,10 +805,76 @@ The dacs block is additive. A2A-only clients ignore the dacs field. DACS-aware c
 
 A DACS catalog is an off-chain index aggregating listings across many sellers, providing search, filtering, and discovery.
 **Endpoints**
-GET /api/dacs/listingsQuery parameters:category=<dot-delimited prefix>tag=<repeatable>credential=<scheme># listings whose buyerRequirement requires this schemeprimaryClaim=<scheme># listings whose seller.identity.presentedBy uses this schemerail=<railId># listings accepting this railpriceMax=<decimal> # advisory; uses summary.priceHintcursor=<opaque># paginationlimit=<int, default 50, max 200>Response:{ "listings": ListingSummary[], "cursor": <opaque>?, "total"?: <int> }GET /api/dacs/listings/{listingId}/{version}Response: Listing (canonical JSON)GET /api/dacs/sellers/{primaryClaimRef}Response: {"listings": ListingSummary[],"identity": IdentityBundle (catalog-cached, last-seen),"reputation": ReputationSummary (per DACS-5)}
+
+```
+GET /api/dacs/listings
+
+  Query parameters:
+
+    category=<dot-delimited prefix>
+
+    tag=<repeatable>
+
+    credential=<scheme>                # listings whose buyerRequirement requires this scheme
+
+    primaryClaim=<scheme>              # listings whose seller.identity.presentedBy uses this scheme
+
+    rail=<railId>                      # listings accepting this rail
+
+    priceMax=<decimal>                 # advisory; uses summary.priceHint
+
+    cursor=<opaque>                    # pagination
+
+    limit=<int, default 50, max 200>
+
+  Response:
+
+    { "listings": ListingSummary[], "cursor": <opaque>?, "total"?: <int> }
+
+GET /api/dacs/listings/{listingId}/{version}
+
+  Response: Listing (canonical JSON)
+
+GET /api/dacs/sellers/{primaryClaimRef}
+
+  Response: {
+
+    "listings": ListingSummary[],
+
+    "identity": IdentityBundle (catalog-cached, last-seen),
+
+    "reputation": ReputationSummary (per DACS-5)
+
+  }
+```
+
 primaryClaimRef is URL-encoded canonical form (e.g., lei%3A984500ABCDEF12345678).
 **ListingSummary, caching, authentication, cross-reference**
-type ListingSummary = {listingId: stringversion: numbercontentHash: stringanchor: { kind: string; locator: string }seller: { primaryClaim: ClaimReference; displayName: string }offering: { title: string; category: string; tags: string[] }pricing: { priceHint?: string; currency?: string }status: "active" | "revoked"catalogObservedAt: number}
+
+```
+type ListingSummary = {
+
+  listingId: string
+
+  version: number
+
+  contentHash: string
+
+  anchor: { kind: string; locator: string }
+
+  seller: { primaryClaim: ClaimReference; displayName: string }
+
+  offering: { title: string; category: string; tags: string[] }
+
+  pricing: { priceHint?: string; currency?: string }
+
+  status: "active" | "revoked"
+
+  catalogObservedAt: number
+
+}
+```
+
 Catalogs MAY return cached ListingSummary records. Clients MUST dereference the anchor to obtain the canonical Listing before engaging. The catalog provides discovery; the chain provides binding. Catalogs SHOULD verify each indexed listing’s anchor at least every 24 hours; the catalogObservedAt timestamp surfaces the catalog’s confidence.
 Read endpoints MUST NOT require authentication. Write/registration semantics are out of scope for v1; the canonical source of truth is always the substrate-anchored listing, not the catalog entry. For every ListingSummary returned, a DACS-aware client MUST resolve the anchor to the on-chain content and validate the contentHash. The catalog’s role is to surface candidates; binding decisions MUST follow the substrate.
 
@@ -355,12 +921,21 @@ Read endpoints MUST NOT require authentication. Write/registration semantics are
 **Index integrity in .well-known.** *Threat:* a compromised web server publishes a falsified listings.json. *Mitigation:* the indexHash in the well-known block is signed only by the TLS certificate, not by the seller’s identity. Clients SHOULD prefer the index’s anchor (substrate-anchored copy) when available; in any case, individual listings MUST be dereferenced and validated independently.
 **Private endpoints and impersonation.** *Threat:* seller.publicEndpoint claims a URL the seller does not control. *Mitigation:* this is a self-claim; readers MUST NOT treat the endpoint as authoritative for any cryptographic purpose. Endpoints are conveniences for off-chain reads, not trust anchors.
 **Key lifecycle.** Every spec assumes a primary key exists per ClaimReference. Implementations MUST hold primary keys in a key-management system that does not retain plaintext at rest (HSM, TEE-backed enclave, or equivalent); support rotation (the relationship between a ClaimReference and its current key may change over time; the DACS-2 recipe for a scheme defines how key-current-ness is resolved); propagate revocation (publish a revocation marker for any listings the key signed, update bundle presentations to use a new key going forward); treat signatures produced by a key after its revocation timestamp as invalid for new sessions; sessions already past commit-agreement using the prior key remain bound (the obligation already exists).
+
 ## Chapter 7 — DACS-2: Vet
+
 **Stage:** Vet (2nd of 5). **Status:** Draft (part of DACS v0.1). **Depends on:** SR-2 (required), SR-3 (required for consensus-backed-proxy and evm-rpc methods); composes with W3C VC, TLSNotary, zkTLS / Reclaim. **Used by:** DACS-1 (claim verification), DACS-3 (pre-negotiation gate), DACS-5 (audit references).
 
 ### 7.1 Abstract
 
 DACS-2 specifies how a party’s claimed credentials are verified against authoritative sources during the Vet stage of a transaction. It defines:
+
+- A **verification method registry** — a closed set of methods (verifiable-credential, tlsnotary, zktls, consensus-backed-proxy, oauth-attested, evm-rpc, domain-tls-control, self-signed), each with input/output shape, trust model, and substrate requirements.
+- A **recipe registry** — a per-credential-type lookup table binding a DACS-1 claim scheme (e.g. lei, finra-crd, domain) to the method and parsing rules used to verify a claim of that scheme. Recipes are versioned and anchored.
+- A **uniform VerifyResult shape** — the record the rest of the stack consumes, method-agnostic, anchored on the substrate, containing the decision, attestation reference, and structured data extracted from the authority’s response.
+- A **composite verification record** — the document Vet produces, aggregating freshness checks, supplementary signals, and deal-specific claims into a single anchored artifact referenced by DACS-5.
+- A **vet-credentials phase** — the DACS-2 phase type the orchestrator invokes; consumes the counterparty’s identity bundle and the listing’s bundle requirement, emits the composite verification record.
+
 Vet does three different jobs and produces one output. The output is the composite verification record. The rest of the transaction — and a future auditor, regulator, or arbitrator — references it.
 
 ### 7.2 Motivation
@@ -380,22 +955,84 @@ Every method MUST: (CM-1) accept inputs as specified in its sub-section; (CM-2) 
 
 #### 7.3.2 verifiable-credential
 
-type VCMethodInput = {recipe: Recipeidentifier: string // claim identifier (must match VC subject)presentation: VerifiablePresentationissuerAllowList?: ClaimReference[]}
+```
+type VCMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string                   // claim identifier (must match VC subject)
+
+  presentation: VerifiablePresentation
+
+  issuerAllowList?: ClaimReference[]
+
+}
+```
+
 **Procedure.** Verifier parses the presentation; verifies the VC signature against the issuer key (resolved per VC method); if issuerAllowList is set, MUST reject if the VC issuer is not in the list; verifies the VC has not expired and is not revoked (via status list, if present); verifies the VC’s subject identifier matches the claim’s identifier canonically; anchors the VC (or its hash, if VC is private) via SR-2; extracts structured data per recipe.parserRules; returns VerifyResult with pass if all steps succeed, fail on signature/expiry/revocation failures, indeterminate on parser errors. **Trust model:** issuer; W3C VC spec; key resolution method (e.g. did:web). **Substrate:** SR-2.
 
 #### 7.3.3 tlsnotary
 
-type TLSNotaryMethodInput = {recipe: Recipeidentifier: stringproof: TLSNotaryProof// MPC-derived TLS session commitment + notary signaturesessionTemplate?: string}
+```
+type TLSNotaryMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string
+
+  proof: TLSNotaryProof                // MPC-derived TLS session commitment + notary signature
+
+  sessionTemplate?: string
+
+}
+```
+
 **Procedure.** Validates the TLSNotary proof per the TLSNotary specification (current PSE rebuild); verifies the notary signature against a known notary public key registry; if sessionTemplate is set, verifies the proof targets that endpoint and protocol; anchors the proof commitment via SR-2; applies parser rules to any disclosed segments; returns VerifyResult per outcome. **Trust model:** TLS PKI; notary honesty; MPC computational assumptions. **Substrate:** SR-2.
 
 #### 7.3.4 zktls
 
-type ZKTLSMethodInput = {recipe: Recipeidentifier: stringprovider: "reclaim" | "pluto" | stringprogramId: stringproof: ZKTLSProof}
+```
+type ZKTLSMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string
+
+  provider: "reclaim" | "pluto" | string
+
+  programId: string
+
+  proof: ZKTLSProof
+
+}
+```
+
 **Procedure.** Loads the verifier circuit for provider:programId; verifies the zk proof per the circuit’s verification algorithm; verifies any public inputs match expected values; anchors the proof + public-input hash via SR-2; applies parser rules to public-input disclosed data; returns VerifyResult per outcome. **Trust model:** zk soundness; provider’s circuit correctness; TLS PKI; proxy honesty (provider-dependent). **Substrate:** SR-2.
 
 #### 7.3.5 consensus-backed-proxy
 
-type ConsensusProxyMethodInput = {recipe: Recipeidentifier: stringendpoint: {method: "GET" | "POST"urlTemplate: string// e.g. "https://api.gleif.org/api/v1/lei-records/{identifier}"headers?: Record<string, string>body?: string}}
+```
+type ConsensusProxyMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string
+
+  endpoint: {
+
+    method: "GET" | "POST"
+
+    urlTemplate: string                // e.g. "https://api.gleif.org/api/v1/lei-records/{identifier}"
+
+    headers?: Record<string, string>
+
+    body?: string
+
+  }
+
+}
+```
+
 **Procedure.** Renders the URL by substituting {identifier} and other recipe parameters into urlTemplate; submits the fetch specification to the substrate’s SR-3 primitive (on Demos: dahr.startProxy({url, method, options})); the substrate returns the response body inline plus chain-anchored commitment hashes (responseHash, responseHeadersHash) via a one-tx web2Request. Anchors the commitment record via SR-2; applies parser rules to the response body; if recipe.negativeMatch is true (OFAC pattern): decision = "pass" when the parser finds no match, "fail" when a match is found; otherwise pass when the parser matches expected success criteria.
 **Trust model in v1 — consensus-anchored hash commitment.** The substrate validator set collectively signs the on-chain transaction that asserts "we fetched URL X at time T and obtained a response with hash H." The full response body is **not** independently signed by the validator set in v1; the chain-level guarantee is "this hash came from this URL at this time," not "this body content is validator-attested." Verifiers consuming the body MUST verify the body’s hash matches the on-chain commitment.
 **Trust caveats v1 implementations MUST surface to consumers.** (a) A validator-set majority that colludes can sign a commitment to a forged response; the body the consumer reads will hash to the committed value, so consumers cannot detect this from the commitment alone. (b) A single validator fetching the response and the rest signing the resulting hash is operationally indistinguishable from a full-fanout fetch under current SR-3 specs; recipes used for high-stakes verification SHOULD set multi-method alternatives (see §7.12). (c) The TLS connection between substrate validators and the authority is the trust floor for response authenticity at fetch time; an attacker who can MITM the authority’s TLS endpoint can cause all validators to commit to forged content.
@@ -405,22 +1042,84 @@ type ConsensusProxyMethodInput = {recipe: Recipeidentifier: stringendpoint: {met
 
 #### 7.3.6 oauth-attested
 
-type OAuthAttestedMethodInput = {recipe: Recipeidentifier: stringprovider: string // e.g. "google", "github"scopes: string[]maxTokenAgeSec: number // recipe-requiredattestation: OAuthAttestationEnvelope}
+```
+type OAuthAttestedMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string
+
+  provider: string                     // e.g. "google", "github"
+
+  scopes: string[]
+
+  maxTokenAgeSec: number               // recipe-required
+
+  attestation: OAuthAttestationEnvelope
+
+}
+```
+
 **Procedure.** Validates the attestation envelope’s signature; verifies the attestation references an OAuth flow that resolved to the claimed identifier (e.g. the sub claim from a Google ID token matches); verifies the granted scopes include those required by the recipe; anchors the attestation via SR-2; returns VerifyResult. **Trust model:** OAuth provider; attestation service honesty; TLS PKI. **Substrate:** SR-2 (SR-3 if the attestation service is the substrate’s API Verification primitive).
 
 #### 7.3.7 evm-rpc
 
-type EVMRPCMethodInput = {recipe: Recipeidentifier: stringchainId: numbercontract: string // 0x addressmethod: string // contract method name or selectorargs?: unknown[] // ABI-encoded arguments}
+```
+type EVMRPCMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string
+
+  chainId: number
+
+  contract: string                     // 0x address
+
+  method: string                       // contract method name or selector
+
+  args?: unknown[]                     // ABI-encoded arguments
+
+}
+```
+
 **Procedure.** Submits a proxy-attested EVM call via SR-3 (typically wrapped as a JSON-RPC fetch); substrate validator set executes the call and signs the result; anchors the signed result via SR-2; decodes the return value per recipe parser rules; compares the decoded value to the claim’s identifier (e.g., owner address of an ERC-8004 token); returns VerifyResult. **Trust model:** substrate consensus; EVM chain finality. **Substrate:** SR-3; SR-2.
 
 #### 7.3.8 domain-tls-control
 
-type DomainTLSControlMethodInput = {recipe: Recipeidentifier: string // the domainchallengeType: "http-01" | "dns-01" | "tls-alpn-01"challenge: Challengeresponse: ChallengeResponse}
+```
+type DomainTLSControlMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string                   // the domain
+
+  challengeType: "http-01" | "dns-01" | "tls-alpn-01"
+
+  challenge: Challenge
+
+  response: ChallengeResponse
+
+}
+```
+
 **Procedure.** Validates the challenge/response per the ACME-style challenge specification; confirms response was retrievable from the claimed domain at the time of the challenge; anchors the challenge/response transcript via SR-2; returns VerifyResult (pass on valid response, fail on invalid, indeterminate on retrieval failure). **Trust model:** DNS / TLS PKI; ACME challenge integrity. **Substrate:** SR-2.
 
 #### 7.3.9 self-signed
 
-type SelfSignedMethodInput = {recipe: Recipeidentifier: string // hex public keysignature: string// signature over the claim assertionassertion: string// canonical bytes signed}
+```
+type SelfSignedMethodInput = {
+
+  recipe: Recipe
+
+  identifier: string                   // hex public key
+
+  signature: string                    // signature over the claim assertion
+
+  assertion: string                    // canonical bytes signed
+
+}
+```
+
 **Procedure.** Validates the signature against the key in identifier; anchors the signed assertion via SR-2; returns VerifyResult with pass on valid signature, fail on invalid. This method provides minimal trust — it proves possession of the key, nothing more. Recipes targeting authority-issued schemes MUST NOT use self-signed. **Trust model:** cryptographic signature. **Substrate:** SR-2.
 
 ### 7.4 Recipe registry
@@ -429,11 +1128,90 @@ A recipe binds a DACS-1 claim scheme to a verification method (or set of accepta
 
 #### 7.4.1 Recipe schema
 
-type Recipe = {recipeVersion: number // monotonic per scheme; starts at 1scheme: stringdefaultMethod: VerificationMethodalternatives?: VerificationMethod[]defaultMaxAgeSec: number// when a verifiedBy reference becomes staleparserRules: ParserSpecnegativeMatch?: boolean // true => presence in source means failretryClass: "transient" | "permanent"availability: RecipeAvailability// operational status (see §7.4.5)governance: {proposedBy: ClaimReferenceacceptedAt: numbersupersedes?: number}signature: RecipeSignature// steward's signature (see §7.4.4)}type RecipeAvailability =| "live"// authority endpoint reachable, attestation path runs end-to-end| "operator_gated"// requires per-operator credential, key, or whitelisting| "closed_data" // authority data not publicly accessible (e.g., paid feed, internal source)| "bilateral" // requires per-relationship agreement between parties| "mocked"// attestation path stubbed; not a production verification| "disabled"// recipe present but the steward has marked it not-for-use| "failed"// recipe's underlying authority is currently broken or unreachabletype VerificationMethod =| { kind: "verifiable-credential"; issuerAllowList?: ClaimReference[]; schemaUrl?: string }| { kind: "tlsnotary"; endpoint: string; sessionTemplate?: string }| { kind: "zktls"; provider: "reclaim" | "pluto" | string; programId: string }| { kind: "consensus-backed-proxy"; endpoint: { method: "GET" | "POST"; urlTemplate: string; headers?: Record<string, string>; body?: string } }| { kind: "oauth-attested"; provider: string; scopes: string[] }| { kind: "evm-rpc"; chainId: number; contract: string; method: string; args?: unknown[] }| { kind: "domain-tls-control"; challengeType: "http-01" | "dns-01" | "tls-alpn-01" }| { kind: "self-signed" }type ParserSpec =| { format: "json"; successJsonPath: string; dataMap?: Record<string, string> }| { format: "html"; successSelector: string; dataMap?: Record<string, string> }| { format: "xml"; successXPath: string; dataMap?: Record<string, string> }| { format: "raw"; matcher: string }
+```
+type Recipe = {
+
+  recipeVersion: number                       // monotonic per scheme; starts at 1
+
+  scheme: string
+
+  defaultMethod: VerificationMethod
+
+  alternatives?: VerificationMethod[]
+
+  defaultMaxAgeSec: number                    // when a verifiedBy reference becomes stale
+
+  parserRules: ParserSpec
+
+  negativeMatch?: boolean                     // true => presence in source means fail
+
+  retryClass: "transient" | "permanent"
+
+  availability: RecipeAvailability            // operational status (see §7.4.5)
+
+  governance: {
+
+    proposedBy: ClaimReference
+
+    acceptedAt: number
+
+    supersedes?: number
+
+  }
+
+  signature: RecipeSignature                  // steward's signature (see §7.4.4)
+
+}
+
+type RecipeAvailability =
+
+  | "live"            // authority endpoint reachable, attestation path runs end-to-end
+
+  | "operator_gated"  // requires per-operator credential, key, or whitelisting
+
+  | "closed_data"     // authority data not publicly accessible (e.g., paid feed, internal source)
+
+  | "bilateral"       // requires per-relationship agreement between parties
+
+  | "mocked"          // attestation path stubbed; not a production verification
+
+  | "disabled"        // recipe present but the steward has marked it not-for-use
+
+  | "failed"          // recipe's underlying authority is currently broken or unreachable
+
+type VerificationMethod =
+
+  | { kind: "verifiable-credential"; issuerAllowList?: ClaimReference[]; schemaUrl?: string }
+
+  | { kind: "tlsnotary"; endpoint: string; sessionTemplate?: string }
+
+  | { kind: "zktls"; provider: "reclaim" | "pluto" | string; programId: string }
+
+  | { kind: "consensus-backed-proxy"; endpoint: { method: "GET" | "POST"; urlTemplate: string; headers?: Record<string, string>; body?: string } }
+
+  | { kind: "oauth-attested"; provider: string; scopes: string[] }
+
+  | { kind: "evm-rpc"; chainId: number; contract: string; method: string; args?: unknown[] }
+
+  | { kind: "domain-tls-control"; challengeType: "http-01" | "dns-01" | "tls-alpn-01" }
+
+  | { kind: "self-signed" }
+
+type ParserSpec =
+
+  | { format: "json"; successJsonPath: string; dataMap?: Record<string, string> }
+
+  | { format: "html"; successSelector: string; dataMap?: Record<string, string> }
+
+  | { format: "xml"; successXPath: string; dataMap?: Record<string, string> }
+
+  | { format: "raw"; matcher: string }
+```
 
 #### 7.4.2 v1 recipe registry contents
 
 The v1 registry contains one recipe per scheme registered in chapter 6. Each recipe is anchored via SR-2 at a steward-controlled address. Implementations MUST resolve recipes from the canonical addresses listed in the recipe-registry index document (dacs2:registry:v1). Default methods per scheme:
+
 | Scheme | Default method | Notes |
 | --- | --- | --- |
 | key | self-signed | Lowest trust; session continuity only |
@@ -460,6 +1238,10 @@ A verifier MUST resolve a recipe by: reading the recipe-registry index from dacs
 #### 7.4.4 Recipe-track lifecycle and current steward
 
 **Recipes are operational artifacts on a different lifecycle than the DACS-2 standard itself.** Authority API endpoints change, response formats evolve, sanctions lists update, OAuth provider scopes shift. Treating every recipe revision as a DACS-2 minor version would force the standard onto an impractical release cadence. v1 separates the two tracks:
+
+- **DACS-2 standard releases** (this chapter) version on a multi-year cadence. They define the method registry, the VerifyResult shape, the recipe schema, the aggregation algorithm, the phase contract.
+- **DACS-2 recipe releases** (the recipe registry) version per-scheme on whatever cadence the underlying authority demands. Recipe revisions ship under the steward’s signing key and do not block on DACS-2 standard releases.
+
 **Current steward (v1).** The DACS-2 recipe registry is currently maintained by **KyneSys Labs** as the v1 steward. This is a single-signer arrangement (phase PA-2 per the progressive-anchoring scheme below). Wider governance — working-group constitution, multi-signature schemes, sub-authority delegation by domain (sanctions lists, financial regulation, etc.) — is open work for v1.1+ and depends on the eventual constitution of a multi-party body. v1 implementations and consumers reason about the registry under single-steward semantics: one signing key, one anchoring authority, full transparency about both.
 **Emergency recipe updates.** When an authority endpoint becomes unavailable or returns materially-incompatible data, the steward MAY publish an emergency recipe revision. Emergency revisions MUST: be signed normally; include an emergency: true field in the governance block; cite the failure observation (URL of authority change announcement, observed response format diff). Emergency revisions take effect at next session start; in-flight sessions continue against pinned recipeVersion.
 **Recipe deprecation.** A recipe MAY be marked deprecated by publishing a new revision with deprecated: true and a deprecationReason. Verifiers MUST NOT initiate new sessions using deprecated recipes for required claims; in-flight sessions continue. A deprecated recipe with no replacement leaves the scheme un-verifiable; this is a v1.1 strengthening target for any scheme that hits this condition.
@@ -468,6 +1250,7 @@ A verifier MUST resolve a recipe by: reading the recipe-registry index from dacs
 #### 7.4.5 Recipe availability (normative)
 
 Every Recipe MUST declare an availability value. The value names the recipe’s current operational status — what a verifier should actually expect when it tries to run this attestation path. The values are deliberately discrete and disjoint so consumers can compose them programmatically without flattening operational reality into a single boolean.
+
 | Value | Meaning |
 | --- | --- |
 | live | Authority endpoint reachable today; the attestation path runs end-to-end against a public or near-public source. The normal operating state for a recipe consumers expect to "just work". |
@@ -485,7 +1268,49 @@ Every Recipe MUST declare an availability value. The value names the recipe’s 
 ### 7.5 VerifyResult
 
 The uniform record every method produces.
-type VerifyResult = {resultVersion: "1"scheme: string// DACS-1 claim schemeidentifier: string// canonical identifier verifiedrecipeVersion: numbermethod: VerificationMethod["kind"]decision: "pass" | "fail" | "indeterminate" | "error"reason: string// briefattestation: AttestationRefdata?: Record<string, unknown>// structured extraction per recipe.parserRulesfetchedAt: number // unix ms when the authority was queriedverifiedAt: number// unix ms when the result was finalisedvalidUntil?: numbersignature: VerifyResultSignature}type AttestationRef = {anchor: { kind: "storage-program" | "ipfs" | "https"; locator: string }contentHash: stringsigner?: ClaimReference // for VC: issuer; for proxy: substrate validator-set claim (see below)}
+
+```
+type VerifyResult = {
+
+  resultVersion: "1"
+
+  scheme: string                              // DACS-1 claim scheme
+
+  identifier: string                          // canonical identifier verified
+
+  recipeVersion: number
+
+  method: VerificationMethod["kind"]
+
+  decision: "pass" | "fail" | "indeterminate" | "error"
+
+  reason: string                              // brief
+
+  attestation: AttestationRef
+
+  data?: Record<string, unknown>              // structured extraction per recipe.parserRules
+
+  fetchedAt: number                           // unix ms when the authority was queried
+
+  verifiedAt: number                          // unix ms when the result was finalised
+
+  validUntil?: number
+
+  signature: VerifyResultSignature
+
+}
+
+type AttestationRef = {
+
+  anchor: { kind: "storage-program" | "ipfs" | "https"; locator: string }
+
+  contentHash: string
+
+  signer?: ClaimReference                     // for VC: issuer; for proxy: substrate validator-set claim (see below)
+
+}
+```
+
 Canonical form is RFC 8785 JCS of the VerifyResult with the signature field omitted. The VerifyResult hash is sha256(canonical_form), hex-encoded. The signature is computed over the domain-separated payload per chapter 7§7.7:
 signed_bytes := "dacs-verifyresult:v1:" || verifyresult_hash
 **Validator-set claim references.** When AttestationRef.signer designates the producer of a consensus-backed-proxy or evm-rpc attestation, the ClaimReference MUST use the substrate-validator-set scheme: substrate-validator-set:<substrateId>:<epochOrSetId>. <substrateId> is a registered substrate identifier (v1 registry: "demos-mainnet", "demos-testnet"; future substrates added by the registry steward). <epochOrSetId> identifies the specific validator set that signed the attestation (Demos uses epoch numbers; substrates using rotating sets use whatever identifier the substrate exposes). Consumers MUST resolve the validator-set reference to the substrate’s published validator-set roster for that epoch and verify the attestation signature against the aggregate of those validators’ keys per the substrate’s consensus protocol. Substrates whose validator-set rosters are not publicly resolvable MUST NOT be used as the signer of a VerifyResult intended for cross-substrate consumption.
@@ -495,6 +1320,12 @@ signed_bytes := "dacs-verifyresult:v1:" || verifyresult_hash
 #### 7.5.1 Decision values and semantics
 
 The four decision values are not interchangeable. Each has distinct semantics that govern retry behaviour, aggregation, and consumer interpretation:
+
+- **pass** — verification ran cleanly and the authority confirmed the claim. The claim is verified.
+- **fail** — verification ran cleanly and the authority’s response conclusively contradicts the claim (authority returned "no record found", returned a record that contradicts the asserted identifier, or returned an explicit denial). The claim is verified-false. fail is the authority’s decision; the verifier ran to completion.
+- **indeterminate** — verification ran cleanly and the authority’s response was parseable but neither confirms nor contradicts the claim. Examples: authority returned a partial-match record; authority returned a status code that signals "result pending"; authority returned a record whose fields are insufficient to make the comparison the recipe requires. The authority gave its answer; the answer just wasn’t conclusive. indeterminate is the authority’s decision being non-binary.
+- **error** — verification could not complete. Transport failure, SR-3 fetch timeout, malformed authority response that the parser cannot consume at all, parser exception, unexpected authority API change. The verifier never received a decision. error is the verifier’s failure to obtain an authority decision, not the authority’s decision to be ambiguous.
+
 **Retry semantics.** (a) error MUST be treated as transient by default; the verifier MAY retry per recipe.retryClass (§7.7 below). (b) indeterminate MUST NOT be retried unless the recipe explicitly marks the method as retry-on-indeterminate (rare; reserved for authorities whose "pending" responses become conclusive on re-fetch). The authority’s indeterminate answer is the answer; re-asking does not change it. (c) pass and fail are terminal; no retry.
 **Aggregation semantics.** A required claim with overall result error or indeterminate after retry budget exhaustion MUST cause vet-credentials to fail the phase. Consumers MUST NOT treat any of indeterminate, error, or fail as pass under any circumstances. Aggregation logic (§7.7.1) distinguishes the three non-pass outcomes in its failure reasons so downstream consumers (dispute, audit, debugging) can determine whether verification reached the authority at all.
 **Why distinguish indeterminate from error.** Both produce non-pass outcomes, but the diagnostic value differs significantly. error means "we should try again or change verification path." indeterminate means "the authority answered, and the answer is not yes or no — escalate to a different authority or accept the ambiguity." Collapsing them loses information that consumers need.
@@ -515,13 +1346,141 @@ The verifier MUST execute each claim verification by: (1) resolving the recipe a
 ### 7.7 Composite verification record
 
 The document the vet-credentials phase produces.
-type CompositeVerificationRecord = {recordVersion: "1"jobId: string // DACS-5 session idevaluatedParty: ClaimReference// counterparty's primary identity claimbundleHash: string// sha256 of the IdentityBundle this Vet ran againstrequirementHash: string // sha256 of the listing's BundleRequirementfreshness: VerifyResultRef[]// re-verifications of pre-attested claimssupplementary: SupplementarySignal[]dealSpecific: VerifyResultRef[]overallDecision: "pass" | "fail" | "indeterminate" | "error"generatedAt: numbersignature: ComponentSignature // signed by the verifier}type VerifyResultRef = {anchor: { kind: "storage-program" | "ipfs" | "https"; locator: string }contentHash: stringrecipeVersion: number}type SupplementarySignal = {source: "dacs-5" | "cci-nomis" | "cci-ethos" | "cci-humanpassport" | "external" | stringsignalType: string// e.g. "completion-rate", "dispute-rate", "rating-avg"value: number | stringobservedAt: numberattestation?: AttestationRef// required for "external" sources}
+
+```
+type CompositeVerificationRecord = {
+
+  recordVersion: "1"
+
+  jobId: string                               // DACS-5 session id
+
+  evaluatedParty: ClaimReference              // counterparty's primary identity claim
+
+  bundleHash: string                          // sha256 of the IdentityBundle this Vet ran against
+
+  requirementHash: string                     // sha256 of the listing's BundleRequirement
+
+  freshness: VerifyResultRef[]                // re-verifications of pre-attested claims
+
+  supplementary: SupplementarySignal[]
+
+  dealSpecific: VerifyResultRef[]
+
+  overallDecision: "pass" | "fail" | "indeterminate" | "error"
+
+  generatedAt: number
+
+  signature: ComponentSignature               // signed by the verifier
+
+}
+
+type VerifyResultRef = {
+
+  anchor: { kind: "storage-program" | "ipfs" | "https"; locator: string }
+
+  contentHash: string
+
+  recipeVersion: number
+
+}
+
+type SupplementarySignal = {
+
+  source: "dacs-5" | "cci-nomis" | "cci-ethos" | "cci-humanpassport" | "external" | string
+
+  signalType: string                          // e.g. "completion-rate", "dispute-rate", "rating-avg"
+
+  value: number | string
+
+  observedAt: number
+
+  attestation?: AttestationRef                // required for "external" sources
+
+}
+```
+
 CCI-native reputation signals (cci-nomis, cci-ethos, cci-humanpassport) are first-class supplementary signal sources: they are read from the counterparty’s CCI without needing a separate attestation, because the underlying CCI context’s GCR routine has already validated them.
 
 #### 7.7.1 Aggregation algorithm
 
 A verifier MUST compute overallDecision per the following algorithm. The algorithm distinguishes four cases for each required claim: passing, indeterminate (authority answered ambiguously), errored (verifier could not reach the authority), and failing/absent. Precedence among non-pass outcomes is failures > errors > indeterminates so that the strongest evidence dominates aggregation.
-aggregate(record, requirement):failures := []errors := []indeterminates := []# All required claims must have a passing VerifyResultfor cr in requirement.required:classify_required(record, cr, failures, errors, indeterminates)# oneOf groups must each contain at least one passingfor group in requirement.oneOf:if not any(find_passing(record, cr.scheme) for cr in group):# Distinguish indeterminate vs error vs hard miss for the groupif any(find_indeterminate(record, cr.scheme) for cr in group):indeterminates.append("oneOf group: at least one claim indeterminate")else if any(find_error(record, cr.scheme) for cr in group):errors.append("oneOf group: at least one claim errored")else:failures.append("oneOf group: no claim satisfied")# Precedence: failures > errors > indeterminatesif failures: return "fail", failuresif errors: return "error", errorsif indeterminates: return "indeterminate", indeterminatesreturn "pass", []classify_required(record, cr, failures, errors, indeterminates):results := find_all_results(record, cr.scheme) // freshness ++ dealSpecificif results is empty:failures.append("required not present: " + cr.scheme)returnif any(r.decision == "pass" for r in results):return// claim satisfiedif any(r.decision == "fail" for r in results):failures.append("required failing: " + cr.scheme)returnif any(r.decision == "indeterminate" for r in results):indeterminates.append("required indeterminate: " + cr.scheme)return// all results are "error"errors.append("required errored: " + cr.scheme)
+
+```
+aggregate(record, requirement):
+
+  failures := []
+
+  errors := []
+
+  indeterminates := []
+
+  # All required claims must have a passing VerifyResult
+
+  for cr in requirement.required:
+
+    classify_required(record, cr, failures, errors, indeterminates)
+
+  # oneOf groups must each contain at least one passing
+
+  for group in requirement.oneOf:
+
+    if not any(find_passing(record, cr.scheme) for cr in group):
+
+      # Distinguish indeterminate vs error vs hard miss for the group
+
+      if any(find_indeterminate(record, cr.scheme) for cr in group):
+
+        indeterminates.append("oneOf group: at least one claim indeterminate")
+
+      else if any(find_error(record, cr.scheme) for cr in group):
+
+        errors.append("oneOf group: at least one claim errored")
+
+      else:
+
+        failures.append("oneOf group: no claim satisfied")
+
+  # Precedence: failures > errors > indeterminates
+
+  if failures: return "fail", failures
+
+  if errors: return "error", errors
+
+  if indeterminates: return "indeterminate", indeterminates
+
+  return "pass", []
+
+classify_required(record, cr, failures, errors, indeterminates):
+
+  results := find_all_results(record, cr.scheme)   // freshness ++ dealSpecific
+
+  if results is empty:
+
+    failures.append("required not present: " + cr.scheme)
+
+    return
+
+  if any(r.decision == "pass" for r in results):
+
+    return  // claim satisfied
+
+  if any(r.decision == "fail" for r in results):
+
+    failures.append("required failing: " + cr.scheme)
+
+    return
+
+  if any(r.decision == "indeterminate" for r in results):
+
+    indeterminates.append("required indeterminate: " + cr.scheme)
+
+    return
+
+  // all results are "error"
+
+  errors.append("required errored: " + cr.scheme)
+```
+
 Supplementary signals MUST NOT change overallDecision from pass to fail automatically; they are informational. A listing MAY declare in terms that specific signals are gating (e.g. minimum reputation score); when so declared, the gating check is treated as a deal-specific claim and runs through the same aggregation. The four classifications carry distinct diagnostic value: "required not present" (no VerifyResult at all), "required failing" (authority said no), "required indeterminate" (authority answered ambiguously), "required errored" (verifier could not reach authority). Consumers debugging or auditing a failed session can read the failure reasons to determine which class the failure belongs to.
 
 #### 7.7.2 Anchoring and signature
@@ -532,7 +1491,43 @@ In v1, the composite record carries a single verifier signature. Multi-party com
 
 ### 7.8 The vet-credentials phase
 
-type VetCredentialsInput = {jobId: stringactor: "buyer" | "seller"bundleToVet: IdentityBundlerequirement: BundleRequirementverifierIdentity: IdentityBundlesessionContext: SessionContextrecipeRegistryVersion: numberattempt: number}type VetCredentialsOutput = PhaseHandlerResult & {contextDelta: {"vet-credentials": {compositeRecord: AttestationRefoverallDecision: "pass" | "fail" | "indeterminate"}}}
+```
+type VetCredentialsInput = {
+
+  jobId: string
+
+  actor: "buyer" | "seller"
+
+  bundleToVet: IdentityBundle
+
+  requirement: BundleRequirement
+
+  verifierIdentity: IdentityBundle
+
+  sessionContext: SessionContext
+
+  recipeRegistryVersion: number
+
+  attempt: number
+
+}
+
+type VetCredentialsOutput = PhaseHandlerResult & {
+
+  contextDelta: {
+
+    "vet-credentials": {
+
+      compositeRecord: AttestationRef
+
+      overallDecision: "pass" | "fail" | "indeterminate"
+
+    }
+
+  }
+
+}
+```
 
 #### 7.8.1 Phase contract
 
@@ -591,12 +1586,20 @@ Re-running vet-credentials with the same inputs MUST produce the same composite-
 **Identifier canonicalisation gaps.** *Threat:* the same logical identifier in two different canonical forms produces two different VerifyResult lookups, allowing an attacker to substitute. *Mitigation:* per-scheme canonicalisation rules are normative. Verifiers MUST canonicalise before issuing a VerifyResult and consumers MUST canonicalise before comparing.
 **Composite record forgery.** *Threat:* an attacker constructs a composite record with overallDecision = "pass" and false VerifyResultRefs. *Mitigation:* the composite record is signed by the verifier; consumers verify the signature. The bundleHash and requirementHash fields bind the record to specific inputs; consumers verify these against the inputs they actually used. Each VerifyResultRef MUST be dereferenced and content-hash-validated before the composite record is accepted.
 **Indeterminate-decision exploitation.** *Threat:* an attacker arranges for a required claim’s verification to fail in a way that returns indeterminate rather than fail, hoping consumers treat the result as pass. *Mitigation:* indeterminate is not pass. The aggregation algorithm treats indeterminate in a required position as overall indeterminate, which MUST fail the phase.
+
 ## Chapter 8 — DACS-3: Negotiate
+
 **Stage:** Negotiate (3rd of 5). **Status:** Draft (part of DACS v0.1). **Depends on:** SR-2 (required for public commitments), SR-4 (required for genuinely private negotiation patterns); references DACS-1 listings and DACS-2 verified bundles. **Used by:** DACS-4 (pricing + rail input to settlement), DACS-5 (agreement reference in session bundle).
 
 ### 8.1 Abstract
 
 DACS-3 specifies how transacting parties arrive at agreed terms and bind themselves cryptographically to the outcome. It defines:
+
+- A **negotiation channel model** — the abstract requirements for a private coordination surface keyed to the participants’ identities, with the public chain seeing only commitments. Realised in v1 by SR-4; substrates without SR-4 can host only negotiate-fixed-price.
+- A **closed set of negotiation patterns** as DACS-3 phase types: negotiate-fixed-price (acceptance), negotiate-rfq (open-ended offer/counter exchange with bounded turns), negotiate-sealed-envelope (commit-then-reveal sealed-bid procurement). Each is a phase with a uniform input/output contract.
+- An **agreement document schema** — the canonical, signed JSON document the parties produce as the output of any negotiation pattern. Carries the final terms, deliverable reference, deadlines, and signatures from all parties.
+- A **commitment phase** (commit-agreement) — the DACS-3 phase that anchors the agreement hash on the public chain, producing the binding artifact every downstream stage references.
+
 Negotiation contents stay between the participants. The public chain receives only what is needed to bind them to the outcome.
 
 ### 8.2 Motivation
@@ -604,6 +1607,10 @@ Negotiation contents stay between the participants. The public chain receives on
 Negotiation is the stage in which commerce most consistently breaks open standards. Identity, payment, and capability discovery can run on public infrastructure with little privacy cost. Pricing, term-sheet drafts, sealed-bid submissions, and RFQ counter-offers cannot — they involve material non-public information, competitive pricing, or simply discussions whose contents would harm the participants if exposed.
 A buyer agent today can issue an RFQ to three sellers via public channels, but the public visibility of the request, the counters, and the timing telegraphs market information that institutional desks specifically pay to keep private. Sealed-bid government procurement cannot run on a public mempool. Pre-trade negotiation in regulated markets is bound by MNPI rules that public-chain visibility violates.
 DACS-3 closes this gap by separating two concerns that have historically been fused:
+
+- **Negotiation content** lives in a private channel between participants. The channel’s membership is bound to the same identities that hold value on the public chain — so signatures inside the channel are equivalent to public-chain signatures — but the contents never become public.
+- **Commitment** lives on the public chain. At the end of negotiation, a single hash of the final agreement is anchored. Anyone with access to the public chain can verify that a binding agreement exists between the named parties at a known timestamp; they cannot read its contents without channel access.
+
 This separation is what makes institutional and regulated flows possible on a public-permissionless substrate. It is also what most distinguishes DACS from existing open standards: payment authorisation standards (AP2, x402), identity registries (ERC-8004), and credential attestation standards (W3C VC, zkTLS) all assume public negotiation or no negotiation. DACS-3 takes the negotiation primitive seriously.
 A third concern: not every transaction needs private negotiation. A $0.01 API micropayment with a fixed price has nothing to negotiate; the listing’s posted terms are the agreement, and "acceptance is the negotiation." DACS-3 makes this case trivial via negotiate-fixed-price, which requires only SR-2 (anchoring) and works on any substrate. The substrate-locked patterns (negotiate-rfq, negotiate-sealed-envelope) are opt-in per listing.
 
@@ -626,7 +1633,32 @@ Other substrates MAY implement SR-4 via TEE-based confidential channels, zk-base
 
 #### 8.3.3 Message envelope (substrate-independent)
 
-type ChannelMessage = {channelId: string// substrate-derived; opaque to DACS-3sequence: number // monotonic per channel, starts at 1sender: ClaimReference // author's primary claimsentAt: number // unix mstype: "offer" | "counter" | "accept" | "reject"| "sealed-envelope-commit" | "sealed-envelope-reveal"| "abort" | "membership-change"body: unknown// type-specific (defined per pattern)refs?: { repliesTo?: number }signature: ChannelMessageSignature // see below}
+```
+type ChannelMessage = {
+
+  channelId: string                    // substrate-derived; opaque to DACS-3
+
+  sequence: number                     // monotonic per channel, starts at 1
+
+  sender: ClaimReference               // author's primary claim
+
+  sentAt: number                       // unix ms
+
+  type: "offer" | "counter" | "accept" | "reject"
+
+       | "sealed-envelope-commit" | "sealed-envelope-reveal"
+
+       | "abort" | "membership-change"
+
+  body: unknown                        // type-specific (defined per pattern)
+
+  refs?: { repliesTo?: number }
+
+  signature: ChannelMessageSignature   // see below
+
+}
+```
+
 The envelope’s canonical form is the RFC 8785 JCS serialisation with the signature field omitted. The envelope hash is sha256(canonical_form). The signature is computed over the domain-separated payload per chapter 7§7.7:
 signed_bytes := "dacs-channelmsg:v1:" || envelope_hash
 Implementations MAY add transport-level fields (routing, framing) outside the signed envelope; signed envelope contents MUST NOT change between sender and receiver.
@@ -643,24 +1675,174 @@ The v1 closed set. Each is a DACS-3 phase type with a phase-handler contract.
 #### 8.4.1 negotiate-fixed-price
 
 Acceptance of the listing’s posted terms. No private channel required.
-type NegotiateFixedPriceInput = {jobId: stringlistingHash: string// pinned listing's content hashlistingRef: { listingId: string; version: number }buyerBundle: IdentityBundle// post-VetsellerBundle: IdentityBundle // post-VetbuyerVetRef: AttestationRef// from DACS-2sellerVetRef: AttestationRef // from DACS-2sessionContext: SessionContext}type NegotiateFixedPriceOutput = PhaseHandlerResult & {contextDelta: {"negotiate-fixed-price": {agreementHash: stringagreementRef: AttestationRef}}}
+
+```
+type NegotiateFixedPriceInput = {
+
+  jobId: string
+
+  listingHash: string                  // pinned listing's content hash
+
+  listingRef: { listingId: string; version: number }
+
+  buyerBundle: IdentityBundle          // post-Vet
+
+  sellerBundle: IdentityBundle         // post-Vet
+
+  buyerVetRef: AttestationRef          // from DACS-2
+
+  sellerVetRef: AttestationRef         // from DACS-2
+
+  sessionContext: SessionContext
+
+}
+
+type NegotiateFixedPriceOutput = PhaseHandlerResult & {
+
+  contextDelta: {
+
+    "negotiate-fixed-price": {
+
+      agreementHash: string
+
+      agreementRef: AttestationRef
+
+    }
+
+  }
+
+}
+```
+
 **Procedure.** The orchestrator (or buyer agent, depending on actor) MUST: construct an AgreementDocument with derivedFromPattern: "fixed-price", copying terms directly from the listing’s pricing, acceptedRails (using the buyer’s selected rail), deliverable, and deadline (computed as now + listing.terms.deadlineSecAfterCommit); collect buyer signature; collect seller co-signature; anchor the agreement document via SR-2; return agreementHash and agreementRef.
 **Seller-side auto-accept (optional)**
 A listing MAY declare terms.acceptanceModel: "auto-accept", in which case the seller pre-issues a **template acceptance commitment** alongside the listing rather than a per-session signature. The mechanism:
+
+- The seller publishes, at listing-anchor time, a separate AutoAcceptCommitment record: { listingRef, listingContentHash, acceptanceModel: "auto-accept", validUntil, sellerSignature } where sellerSignature is the seller’s signature over the domain-separated payload "dacs-auto-accept-commitment:v1:" || sha256(canonical(commitment)). This commits the seller to auto-accepting any buyer signature against the listed terms within validUntil.
+- At orchestrator time, the orchestrator: (1) verifies the AutoAcceptCommitment is anchored, valid, and unrevoked; (2) constructs the per-session AgreementDocument with derivedFromPattern: "fixed-price"; (3) computes the agreement hash; (4) constructs an auto-accept seller signature: an Ed25519 signature by the seller’s primary key over "dacs-auto-accept-instance:v1:" || agreementHash || autoAcceptCommitmentHash. This instance signature is NOT pre-issued — it MUST be produced live by the seller’s keyholder or by an authorised auto-signer the seller has explicitly delegated to. The pre-issued AutoAcceptCommitment authorises the auto-signer to produce instance signatures within its scope.
+
 Listings using auto-accept MUST publish the AutoAcceptCommitment alongside the listing, and the buyer’s orchestrator MUST verify the commitment before relying on auto-accept. A pre-issued per-instance signature (signing a placeholder agreement hash) MUST NOT be used; the per-instance signature binds to a specific agreement hash. Sellers operating auto-accept MUST hold the auto-signing key in a system that produces live instance signatures on demand (HSM, TEE, hot wallet with rate-limiting).
 **Substrate:** SR-2 only.
 
 #### 8.4.2 negotiate-rfq
 
 Bounded multi-turn offer-and-counter exchange in a private channel.
-type NegotiateRfqInput = {jobId: stringlistingHash: stringlistingRef: { listingId: string; version: number }buyerBundle: IdentityBundlesellerBundle: IdentityBundlebuyerVetRef: AttestationRefsellerVetRef: AttestationRefparameters: {maxTurns: number // hard cap; default 6; MUST be >= 2timeoutSec: number // per-turn timeoutchannelSubnet?: string // SR-4 channel id; substrate-specific}sessionContext: SessionContext}type NegotiateRfqOutput = PhaseHandlerResult & {contextDelta: {"negotiate-rfq": {agreementHash: stringagreementRef: AttestationRefturnCount: numberchannelTranscriptRef?: AttestationRef// optional; member-only-decryptable}}}
+
+```
+type NegotiateRfqInput = {
+
+  jobId: string
+
+  listingHash: string
+
+  listingRef: { listingId: string; version: number }
+
+  buyerBundle: IdentityBundle
+
+  sellerBundle: IdentityBundle
+
+  buyerVetRef: AttestationRef
+
+  sellerVetRef: AttestationRef
+
+  parameters: {
+
+    maxTurns: number                   // hard cap; default 6; MUST be >= 2
+
+    timeoutSec: number                 // per-turn timeout
+
+    channelSubnet?: string             // SR-4 channel id; substrate-specific
+
+  }
+
+  sessionContext: SessionContext
+
+}
+
+type NegotiateRfqOutput = PhaseHandlerResult & {
+
+  contextDelta: {
+
+    "negotiate-rfq": {
+
+      agreementHash: string
+
+      agreementRef: AttestationRef
+
+      turnCount: number
+
+      channelTranscriptRef?: AttestationRef  // optional; member-only-decryptable
+
+    }
+
+  }
+
+}
+```
+
 **Procedure.** The orchestrator (driving the buyer-side flow) MUST: (1) establish an SR-4 channel between buyerBundle.presentedBy and sellerBundle.presentedBy; (2) send an initial offer — buyer (or seller, depending on listing’s rfqInitiator field) sends a turn of type offer with proposed terms; (3) iterate — each side MAY respond with counter, accept, or reject; iteration continues until accept is received (proceed), reject is received (terminate; counterparty class), maxTurns is reached without accept (terminate; counterparty class), or timeoutSec elapses without a response (terminate; counterparty or substrate class); (4) construct the AgreementDocument with derivedFromPattern: "rfq" and the agreed terms, sign and send as a final message; (5) collect co-signatures from all parties; (6) anchor the agreement via SR-2; (7) optionally, if all parties consent, anchor the encrypted transcript via SR-2 with a channelTranscriptRef. Consent MUST be explicit; default is no transcript anchoring.
 **Conformance.** (RFQ-1) maxTurns MUST be ≥ 2. (RFQ-2) Each turn MUST conform to the channel message envelope. (RFQ-3) Final terms MUST conform to the listing’s pricing band — counters proposing terms outside the band MUST be rejected client-side; signed agreements with out-of-band terms MUST be rejected by commit-agreement. (RFQ-4) Implementations MUST enforce the turn timeout; missed-timeout abandonment MUST be treated as channel failure. **Substrate:** SR-2 + SR-4.
 
 #### 8.4.3 negotiate-sealed-envelope
 
 Sealed-bid procurement: all bidders submit hash-committed bids before a deadline; bids are revealed after the deadline; winner is selected per the listing’s selection criterion.
-type NegotiateSealedEnvelopeInput = {jobId: stringlistingHash: stringlistingRef: { listingId: string; version: number }buyerBundles: IdentityBundle[] // all bidders' bundlessellerBundle: IdentityBundle // listing publisherbuyerVetRefs: AttestationRef[]sellerVetRef: AttestationRefparameters: {commitDeadline: number // unix ms; MUST be > nowrevealWindow: number // seconds after commitDeadline; MUST be >= 60selectionRule: "lowest-price" | "highest-price" | "first-acceptable" | "rule-ref:<uri>"channelSubnet?: string}sessionContext: SessionContext}type NegotiateSealedEnvelopeOutput = PhaseHandlerResult & {contextDelta: {"negotiate-sealed-envelope": {agreementHash: stringagreementRef: AttestationRefwinningBidderClaim: ClaimReferencerevealedBidRefs: AttestationRef[]losingBidderClaims: ClaimReference[]}}}
+
+```
+type NegotiateSealedEnvelopeInput = {
+
+  jobId: string
+
+  listingHash: string
+
+  listingRef: { listingId: string; version: number }
+
+  buyerBundles: IdentityBundle[]       // all bidders' bundles
+
+  sellerBundle: IdentityBundle         // listing publisher
+
+  buyerVetRefs: AttestationRef[]
+
+  sellerVetRef: AttestationRef
+
+  parameters: {
+
+    commitDeadline: number             // unix ms; MUST be > now
+
+    revealWindow: number               // seconds after commitDeadline; MUST be >= 60
+
+    selectionRule: "lowest-price" | "highest-price" | "first-acceptable" | "rule-ref:<uri>"
+
+    channelSubnet?: string
+
+  }
+
+  sessionContext: SessionContext
+
+}
+
+type NegotiateSealedEnvelopeOutput = PhaseHandlerResult & {
+
+  contextDelta: {
+
+    "negotiate-sealed-envelope": {
+
+      agreementHash: string
+
+      agreementRef: AttestationRef
+
+      winningBidderClaim: ClaimReference
+
+      revealedBidRefs: AttestationRef[]
+
+      losingBidderClaims: ClaimReference[]
+
+    }
+
+  }
+
+}
+```
+
 **Procedure.** The orchestrator MUST: (1) establish SR-4 channels between the seller and each bidder; (2) **bidder commit phase** (before commitDeadline) — each bidder constructs a bid, computes bidHash = sha256(canonical_JCS(bid) || bidder_salt), and sends a sealed-envelope-commit message {bidHash, bidderClaim, commitTimestamp}; the commit message’s bidHash MUST also be anchored via SR-2; (3) at commitDeadline, no further commits are accepted; the orchestrator records the set of received commits; (4) **bidder reveal phase** (within revealWindow) — each bidder sends a sealed-envelope-reveal message {bid, salt} matching their prior bidHash; orchestrator verifies sha256(canonical_JCS(bid) || salt) == bidHash; mismatches cause exclusion; (5) **selection** — the orchestrator applies parameters.selectionRule; ties resolved by earliest commit timestamp; (6) construct the AgreementDocument from the winning bid with derivedFromPattern: "sealed-envelope" (losing bidders listed as bidder-non-winning parties; their signatures are not required); (7) anchor the agreement and reveal records via SR-2.
 **Selection rules and the rule-ref binding requirement**
 parameters.selectionRule is one of: "lowest-price"; "highest-price"; "first-acceptable" (per listing-defined acceptance criteria); "rule-ref:<contentHash>:<uri>". For rule-ref, the rule MUST be anchored as a Storage Program (or fetched from an HTTPS URI and content-hash-bound). The URI is purely informational; the <contentHash> in the selection rule string is the authoritative binding. Orchestrators MUST fetch the rule at <uri> (or the substrate anchor), compute sha256 of the canonical form, and verify it matches <contentHash>. Mismatch MUST exclude the rule and fail the selection step with errorClass: permanent. This prevents a seller from changing the selection algorithm after bids have been submitted by changing the content served at <uri>.
@@ -669,7 +1851,98 @@ parameters.selectionRule is one of: "lowest-price"; "highest-price"; "first-acce
 ### 8.5 Agreement document
 
 The canonical output of any negotiation pattern.
-type AgreementDocument = {agreementVersion: "1"jobId: stringlistingRef: {listingId: stringversion: numbercontentHash: string// pinned listing content hash}parties: AgreementParty[]terms: {deliverable: DeliverableRef// DACS-4 referenceprice: PriceTerm // DACS-4 referencerail: PaymentRailRef // DACS-4 reference (must appear in listing.acceptedRails)deadline: number // unix ms; settle-by deadlineadditionalTerms?: Record<string, unknown>}derivedFromPattern: "fixed-price" | "rfq" | "sealed-envelope"derivedFromChannel?: {subnet: stringlastMessageHash: string}generatedAt: numbersignatures: AgreementSignature[]}type AgreementParty = {role: "buyer" | "seller" | "bidder-non-winning"bundleHash: string // sha256 of the post-Vet IdentityBundleprimaryClaim: ClaimReference // pulled from bundle.presentedByvetRecordRef: AttestationRef // DACS-2 composite verification record}// Optional: competitive context for best-execution audit.type CompetitiveContext = {pattern: "rfq" | "sealed-envelope"receivedQuotes: Array<{fromParty: ClaimReferencequoteHash: string// hash of the losing quote contentsquoteRef?: AttestationRef}>}// AgreementDocument.terms.additionalTerms MAY include "competitiveContext: CompetitiveContext".type AgreementSignature = {party: ClaimReferencealgorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"value: string// signature over agreement hash}
+
+```
+type AgreementDocument = {
+
+  agreementVersion: "1"
+
+  jobId: string
+
+  listingRef: {
+
+    listingId: string
+
+    version: number
+
+    contentHash: string                // pinned listing content hash
+
+  }
+
+  parties: AgreementParty[]
+
+  terms: {
+
+    deliverable: DeliverableRef        // DACS-4 reference
+
+    price: PriceTerm                   // DACS-4 reference
+
+    rail: PaymentRailRef               // DACS-4 reference (must appear in listing.acceptedRails)
+
+    deadline: number                   // unix ms; settle-by deadline
+
+    additionalTerms?: Record<string, unknown>
+
+  }
+
+  derivedFromPattern: "fixed-price" | "rfq" | "sealed-envelope"
+
+  derivedFromChannel?: {
+
+    subnet: string
+
+    lastMessageHash: string
+
+  }
+
+  generatedAt: number
+
+  signatures: AgreementSignature[]
+
+}
+
+type AgreementParty = {
+
+  role: "buyer" | "seller" | "bidder-non-winning"
+
+  bundleHash: string                   // sha256 of the post-Vet IdentityBundle
+
+  primaryClaim: ClaimReference         // pulled from bundle.presentedBy
+
+  vetRecordRef: AttestationRef         // DACS-2 composite verification record
+
+}
+
+// Optional: competitive context for best-execution audit.
+
+type CompetitiveContext = {
+
+  pattern: "rfq" | "sealed-envelope"
+
+  receivedQuotes: Array<{
+
+    fromParty: ClaimReference
+
+    quoteHash: string                  // hash of the losing quote contents
+
+    quoteRef?: AttestationRef
+
+  }>
+
+}
+
+// AgreementDocument.terms.additionalTerms MAY include "competitiveContext: CompetitiveContext".
+
+type AgreementSignature = {
+
+  party: ClaimReference
+
+  algorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"
+
+  value: string                        // signature over agreement hash
+
+}
+```
 
 #### 8.5.1 Canonical serialisation and signature
 
@@ -684,17 +1957,92 @@ A verifier MUST validate the agreement against its referenced listing: terms.pri
 ### 8.6 Commitment phase (commit-agreement)
 
 The DACS-3 phase that anchors the agreement hash on the public chain.
-type CommitAgreementInput = {jobId: stringagreement: AgreementDocumentlistingRef: { listingId: string; version: number; contentHash: string }sessionContext: SessionContext}type CommitAgreementOutput = PhaseHandlerResult & {contextDelta: {"commit-agreement": {agreementHash: stringanchorTxRef: TxRefcommittedAt: number}}}
+
+```
+type CommitAgreementInput = {
+
+  jobId: string
+
+  agreement: AgreementDocument
+
+  listingRef: { listingId: string; version: number; contentHash: string }
+
+  sessionContext: SessionContext
+
+}
+
+type CommitAgreementOutput = PhaseHandlerResult & {
+
+  contextDelta: {
+
+    "commit-agreement": {
+
+      agreementHash: string
+
+      anchorTxRef: TxRef
+
+      committedAt: number
+
+    }
+
+  }
+
+}
+```
+
 **Procedure.** The orchestrator MUST: (1) compute agreementHash = sha256(canonical_JCS(agreement)) with signatures omitted; (2) verify all required signatures are present and valid; (3) validate the agreement against the listing — any validation failure MUST cause the phase to fail with class permanent; (4) construct the on-chain commitment record:
-type CommitmentRecord = {dacsVersion: "1"jobId: stringagreementHash: stringlistingRef: { listingId: string; version: number; contentHash: string }parties: ClaimReference[]// primary claims of signing partiespattern: "fixed-price" | "rfq" | "sealed-envelope"committedAt: number}
+
+```
+type CommitmentRecord = {
+
+  dacsVersion: "1"
+
+  jobId: string
+
+  agreementHash: string
+
+  listingRef: { listingId: string; version: number; contentHash: string }
+
+  parties: ClaimReference[]          // primary claims of signing parties
+
+  pattern: "fixed-price" | "rfq" | "sealed-envelope"
+
+  committedAt: number
+
+}
+```
+
 (5) anchor the commitment record via SR-2 at address dacs3:commit:{jobId} (or substrate-equivalent), with the orchestrator signature over the domain-separated payload "dacs-commitment:v1:" || sha256(canonical_JCS(commitmentRecord_without_signature)); (6) return agreementHash and anchorTxRef.
 **Conformance.** (CA-1) The orchestrator MUST NOT advance to DACS-4 (Settle) until commit-agreement returns ok: true. (CA-2) Commitment records MUST be anchored on the public chain (not in a private channel). (CA-3) Once anchored, the commitment is immutable. Re-commitments for the same jobId MUST be rejected. (CA-4) The agreement document itself MAY be anchored separately (publicly or privately). For institutional flows, the agreement document is typically NOT anchored on the public chain — only its hash is. Parties retain the agreement document off-chain (or encrypted-anchored).
 
 ### 8.7 Channel transcript and disclosure
 
 Negotiation channels produce a transcript: the ordered sequence of signed messages between participants. The transcript is private to channel members. When a transcript is anchored (see disclosure policies below), its signature is computed over the domain-separated payload "dacs-transcript:v1:" || sha256(canonical_JCS(transcript_without_signatures)) per chapter 7§7.7.
-type ChannelTranscript = {transcriptVersion: "1"channelId: stringmembers: ClaimReference[]messages: ChannelMessage[]generatedAt: numbersignatures: TranscriptSignature[]}
+
+```
+type ChannelTranscript = {
+
+  transcriptVersion: "1"
+
+  channelId: string
+
+  members: ClaimReference[]
+
+  messages: ChannelMessage[]
+
+  generatedAt: number
+
+  signatures: TranscriptSignature[]
+
+}
+```
+
 **Default disclosure: none.** By default, the transcript is not anchored on the public chain. Only the agreement hash (via commit-agreement) is public. The DACS-1 listing’s terms.transcriptDisclosurePolicy controls this per-listing:
+
+- "none" (default) — transcripts stay in the channel; no anchoring required.
+- "encrypted-anchored-recommended" — orchestrators SHOULD anchor transcripts encrypted to channel members; not required.
+- "encrypted-anchored-required" — orchestrators MUST anchor encrypted transcripts; absence of transcript anchor MUST fail the phase. Recommended for sessions whose counterparty is a regulated entity that may be subject to subpoena.
+
 If all channel members consent, the transcript MAY be encrypted to the member set and anchored via SR-2. The AgreementDocument.derivedFromChannel.lastMessageHash provides a verifiable hook from the public agreement to the (private) transcript. A future DACS standard (proposed DACS-X dispute) MAY require selective transcript disclosure under signed party agreement or arbitrator order. v1 does not specify dispute resolution; parties intending to support dispute SHOULD anchor encrypted transcripts at agreement time so disclosure is technically possible later.
 
 ### 8.8 Pattern selection by listing
@@ -748,24 +2096,112 @@ A DACS-1 listing’s pipeline declares which negotiation pattern is used. Each P
 **Identity substitution between Vet and agreement signature.** *Threat:* a party’s bundle is verified in DACS-2 but they sign the agreement with a different key. *Mitigation:* AgreementSignature.party references the primary claim from the bundle. The signature key MUST be the one bound to that claim. Mismatches cause commit-agreement to fail.
 **Channel-membership exfiltration.** *Threat:* the channel operator (or a compromised member) leaks the negotiation transcript publicly. *Mitigation:* DACS-3 cannot prevent this technically — once a member sees the transcript, they can leak it. Listings handling sensitive flows SHOULD restrict membership to known counterparties; the leak risk reduces to counterparty-trust risk, which DACS-2 verification helps quantify.
 **Late-revealing bidder denial-of-service.** *Threat:* in sealed-envelope, a bidder commits and then deliberately fails to reveal, hoping to disrupt the auction. *Mitigation:* SE-4 excludes non-revealing bidders from selection and marks them with a reputation event. Repeated failures damage their DACS-5 reputation. Listings MAY require a stake from bidders (escrowed at commit, returned on reveal) to make denial-of-service costly; v1 does not standardise stake.
+
 ## Chapter 9 — DACS-4: Settle
+
 **Stage:** Settle (4th of 5). **Status:** Draft (part of DACS v0.1). **Depends on:** SR-2 (required), SR-5 (required for cross-chain rails only); composes with AP2, x402, ERC-20, SPL, HTLC contracts, and substrate-native bridges (Liquidity Tanks on Demos). **Used by:** DACS-5 (settlement evidence in session bundle).
 
 ### 9.1 Abstract
 
 DACS-4 specifies how value is exchanged and the deliverable provided once a DACS-3 agreement is committed. It defines:
+
+- A **payment rail registry** — a versioned, anchored set of payment rails. Each rail is a typed envelope identifying the chain or network, the asset, the settlement contract or protocol, and any rail-specific parameters.
+- A **closed set of payment phases** (DACS-4 phase types) — pay-evm-erc20, pay-solana-spl, pay-cross-chain-htlc, pay-cross-chain-liquidity-tank, pay-ap2, pay-x402. Each is a phase with a uniform PhaseHandlerResult shape.
+- A **closed set of delivery phases** — deliver-storage-program, deliver-entitlement, deliver-attested-payload. Each produces SettlementEvidence the rest of the stack consumes.
+- A **uniform SettlementEvidence shape** — the record produced by every payment and delivery phase; the substrate-anchored audit unit referenced by DACS-5.
+- A **cross-chain coordination layer** — atomic settlement primitives (HTLC, Liquidity Tank) so a payment on chain A and a delivery on chain B succeed together or not at all.
+
 Payment and delivery are decoupled: a listing’s pipeline composes one or more payment phases with one or more delivery phases, in any order the seller deems safe. The DACS-3 agreement document carries the chosen rail and deliverable references; DACS-4 phases consume them and produce evidence DACS-5 anchors.
 
 ### 9.2 Motivation
 
 Settlement is the stage where the most working open standards exist. Stablecoin transfers, ERC-20 / SPL token movements, HTLC swaps, AP2 payment mandates, and x402-style HTTP micropayments all ship in production today. None of them, individually, is sufficient for the agent commerce lifecycle, because each addresses a single slice:
+
+- **AP2** (FIDO Alliance custodian since April 2026) specifies how payment authorisation is mandated by a user to an agent. AP2 says *who is authorised to pay how much for what*. It does not say *how the payment is routed*, *how delivery is bound to payment*, or *what audit record results*.
+- **x402** (Coinbase / Cloudflare / Anthropic) specifies HTTP 402 micropayments. x402 says *how an HTTP server requests payment and how a client supplies it*. It does not cover agent-to-agent settlement that is not over HTTP.
+- **ERC-20 / SPL** specify token transfer. They say *how value moves on chain X*. They do not cover cross-chain coordination, delivery binding, or evidence production.
+- **HTLC contracts** specify atomic cross-chain swaps. They cover coordination but not the rest of the lifecycle.
+
 DACS-4 composes these standards into a uniform settlement layer. The payment rail registry routes each rail to its appropriate phase handler; the SettlementEvidence shape lets DACS-5 anchor the result regardless of which rail was used; the cross-chain coordination layer extends to settlements that span chains.
 A second motivation is **scope discipline**: DACS-4 does not specify new payment cryptography. It composes existing protocols, adds the registry and evidence schema, and provides cross-chain coordination via substrate primitives (SR-5). The new bytes-on-the-wire are limited to the rail registry, the SettlementEvidence shape, and the phase-handler contracts.
 
 ### 9.3 Shared types
 
 These types are referenced by DACS-1 (listings), DACS-3 (agreements), DACS-4 (this chapter), and DACS-5 (session record).
-type PaymentRailRef = {railId: string // e.g. "evm-erc20:1:USDC" or "demos:cross-chain-tank:USDC"railVersion?: number // pinned at session start if setparameters?: Record<string, unknown>}type PricingSpec =| { kind: "fixed"; price: PriceTerm }| { kind: "negotiable"; bandCenter: PriceTerm; minPct: number; maxPct: number }| { kind: "auction"; reservePrice?: PriceTerm; selectionRule: "lowest-price" | "highest-price" | string }type PriceTerm = {amount: string // decimal as string, full precisioncurrency: string // ISO 4217 fiat OR asset id (e.g. "usd-stablecoin", "USDC", "SOL")unit?: string// optional unit qualifier (e.g. "per-call")}type DeliverableSpec =| { kind: "storage-program"; schemaUrl?: string; expectedSizeBytes?: number }| { kind: "entitlement"; durationSec: number; renewable: boolean }| { kind: "attested-payload"; payloadFormat: string; expectedSizeBytes?: number }| { kind: "external"; description: string; verificationMethod?: VerificationMethod }type DeliverableRef = {deliverableType: DeliverableSpec["kind"]hash: string // sha256 of the deliverable specschemaUrl?: string}// On-chain transaction reference; discriminated union.type TxRef = ChainTxReftype ChainTxRef =| { kind: "evm"; chainId: number; txHash: string }| { kind: "solana"; cluster: "mainnet" | "devnet" | "testnet"; signature: string }| { kind: "demos"; txHash: string }| { kind: "storage-program"; address: string; writeTxHash: string }| { kind: "ap2"; mandateId: string; providerRef: string }| { kind: "x402"; httpResource: string; paymentReceiptHash: string }| { kind: "htlc-lock"; chainId: number; contractAddress: string; lockTxHash: string }| { kind: "htlc-reveal"; chainId: number; contractAddress: string; revealTxHash: string }| { kind: "liquidity-tank"; bridgeId: string; sourceChainId: number; destChainId: number; lockTxHash: string; releaseTxHash?: string }
+
+```
+type PaymentRailRef = {
+
+  railId: string                       // e.g. "evm-erc20:1:USDC" or "demos:cross-chain-tank:USDC"
+
+  railVersion?: number                 // pinned at session start if set
+
+  parameters?: Record<string, unknown>
+
+}
+
+type PricingSpec =
+
+  | { kind: "fixed"; price: PriceTerm }
+
+  | { kind: "negotiable"; bandCenter: PriceTerm; minPct: number; maxPct: number }
+
+  | { kind: "auction"; reservePrice?: PriceTerm; selectionRule: "lowest-price" | "highest-price" | string }
+
+type PriceTerm = {
+
+  amount: string                       // decimal as string, full precision
+
+  currency: string                     // ISO 4217 fiat OR asset id (e.g. "usd-stablecoin", "USDC", "SOL")
+
+  unit?: string                        // optional unit qualifier (e.g. "per-call")
+
+}
+
+type DeliverableSpec =
+
+  | { kind: "storage-program"; schemaUrl?: string; expectedSizeBytes?: number }
+
+  | { kind: "entitlement"; durationSec: number; renewable: boolean }
+
+  | { kind: "attested-payload"; payloadFormat: string; expectedSizeBytes?: number }
+
+  | { kind: "external"; description: string; verificationMethod?: VerificationMethod }
+
+type DeliverableRef = {
+
+  deliverableType: DeliverableSpec["kind"]
+
+  hash: string                         // sha256 of the deliverable spec
+
+  schemaUrl?: string
+
+}
+
+// On-chain transaction reference; discriminated union.
+
+type TxRef = ChainTxRef
+
+type ChainTxRef =
+
+  | { kind: "evm"; chainId: number; txHash: string }
+
+  | { kind: "solana"; cluster: "mainnet" | "devnet" | "testnet"; signature: string }
+
+  | { kind: "demos"; txHash: string }
+
+  | { kind: "storage-program"; address: string; writeTxHash: string }
+
+  | { kind: "ap2"; mandateId: string; providerRef: string }
+
+  | { kind: "x402"; httpResource: string; paymentReceiptHash: string }
+
+  | { kind: "htlc-lock"; chainId: number; contractAddress: string; lockTxHash: string }
+
+  | { kind: "htlc-reveal"; chainId: number; contractAddress: string; revealTxHash: string }
+
+  | { kind: "liquidity-tank"; bridgeId: string; sourceChainId: number; destChainId: number; lockTxHash: string; releaseTxHash?: string }
+```
 
 ### 9.4 Payment rail registry
 
@@ -773,11 +2209,90 @@ A versioned, anchored set of payment rails. Each rail entry describes one settle
 
 #### 9.4.1 Rail schema
 
-type RailDefinition = {registryVersion: numberrailId: string // canonical id; lowercase ASCII; max 64 charsrailType: "evm-erc20" | "solana-spl" | "cross-chain-htlc" | "cross-chain-liquidity-tank" | "ap2" | "x402"asset: AssetSpec // what is being transferrednetwork: NetworkSpec // where it livesphaseHandler: PhaseType// which pay-* phase handles itparameters: Record<string, unknown>// rail-type-specificavailability: RailAvailability // operational status (see §9.4.5)governance: { proposedBy: ClaimReference; acceptedAt: number; supersedes?: number }signature: RailSignature // steward's signature (see §9.4.4)}type RailAvailability =| "live"// settlement path runs end-to-end against the network today| "operator_gated"// requires per-operator credential, key, registration, or licensed-agent setup| "closed_data" // network or asset access not publicly available (e.g., permissioned chain)| "bilateral" // requires per-relationship agreement between counterparties| "mocked"// settlement path stubbed; not a production rail| "disabled"// rail present but the steward has marked it not-for-use| "failed"// rail's underlying network or asset path is currently brokentype AssetSpec =| { kind: "erc20"; chainId: number; contract: string; symbol: string; decimals: number }| { kind: "spl"; cluster: "mainnet" | "devnet" | "testnet"; mint: string; symbol: string; decimals: number }| { kind: "native-evm"; chainId: number; symbol: string; decimals: number }| { kind: "native-solana"; cluster: "mainnet" | "devnet" | "testnet"; symbol: "SOL"; decimals: 9 }| { kind: "fiat-via-ap2"; isoCurrency: string; provider: string }| { kind: "stablecoin-cross-chain"; canonicalSymbol: string; routes: CrossChainRoute[] }type NetworkSpec =| { kind: "evm"; chainId: number; rpcAttestation: "consensus-backed-proxy" | "evm-rpc" }| { kind: "solana"; cluster: "mainnet" | "devnet" | "testnet" }| { kind: "ap2-provider"; providerEndpoint: string }| { kind: "x402-resource"; resourceBaseUrl: string }| { kind: "cross-chain"; mechanism: "htlc" | "liquidity-tank" | "substrate-native" }type CrossChainRoute = {sourceChainId: number | stringdestChainId: number | stringhtlcContracts?: { source: string; dest: string }liquidityTankIds?: string[]}
+```
+type RailDefinition = {
+
+  registryVersion: number
+
+  railId: string                       // canonical id; lowercase ASCII; max 64 chars
+
+  railType: "evm-erc20" | "solana-spl" | "cross-chain-htlc" | "cross-chain-liquidity-tank" | "ap2" | "x402"
+
+  asset: AssetSpec                     // what is being transferred
+
+  network: NetworkSpec                 // where it lives
+
+  phaseHandler: PhaseType              // which pay-* phase handles it
+
+  parameters: Record<string, unknown>  // rail-type-specific
+
+  availability: RailAvailability       // operational status (see §9.4.5)
+
+  governance: { proposedBy: ClaimReference; acceptedAt: number; supersedes?: number }
+
+  signature: RailSignature             // steward's signature (see §9.4.4)
+
+}
+
+type RailAvailability =
+
+  | "live"            // settlement path runs end-to-end against the network today
+
+  | "operator_gated"  // requires per-operator credential, key, registration, or licensed-agent setup
+
+  | "closed_data"     // network or asset access not publicly available (e.g., permissioned chain)
+
+  | "bilateral"       // requires per-relationship agreement between counterparties
+
+  | "mocked"          // settlement path stubbed; not a production rail
+
+  | "disabled"        // rail present but the steward has marked it not-for-use
+
+  | "failed"          // rail's underlying network or asset path is currently broken
+
+type AssetSpec =
+
+  | { kind: "erc20"; chainId: number; contract: string; symbol: string; decimals: number }
+
+  | { kind: "spl"; cluster: "mainnet" | "devnet" | "testnet"; mint: string; symbol: string; decimals: number }
+
+  | { kind: "native-evm"; chainId: number; symbol: string; decimals: number }
+
+  | { kind: "native-solana"; cluster: "mainnet" | "devnet" | "testnet"; symbol: "SOL"; decimals: 9 }
+
+  | { kind: "fiat-via-ap2"; isoCurrency: string; provider: string }
+
+  | { kind: "stablecoin-cross-chain"; canonicalSymbol: string; routes: CrossChainRoute[] }
+
+type NetworkSpec =
+
+  | { kind: "evm"; chainId: number; rpcAttestation: "consensus-backed-proxy" | "evm-rpc" }
+
+  | { kind: "solana"; cluster: "mainnet" | "devnet" | "testnet" }
+
+  | { kind: "ap2-provider"; providerEndpoint: string }
+
+  | { kind: "x402-resource"; resourceBaseUrl: string }
+
+  | { kind: "cross-chain"; mechanism: "htlc" | "liquidity-tank" | "substrate-native" }
+
+type CrossChainRoute = {
+
+  sourceChainId: number | string
+
+  destChainId: number | string
+
+  htlcContracts?: { source: string; dest: string }
+
+  liquidityTankIds?: string[]
+
+}
+```
 
 #### 9.4.2 v1 registry contents
 
 The v1 registry contains rail entries for the most-used settlement paths in production. Implementations MUST resolve rails from the canonical addresses listed in the rail-registry index document (dacs4:registry:v1).
+
 | Rail ID | Phase handler | Notes |
 | --- | --- | --- |
 | evm-erc20:1:USDC | pay-evm-erc20 | Ethereum mainnet USDC |
@@ -805,6 +2320,14 @@ A consumer MUST resolve a rail by: reading the rail-registry index from dacs4:re
 
 Every RailDefinition MUST declare an availability value, with the same value set and semantics as recipe availability (§7.4.5). The value names the rail’s current operational status — what an orchestrator should actually expect when it tries to settle through this rail. Mapping is direct:
 
+- **live** — settlement path runs end-to-end on the named network today. Typical for the major stablecoin-on-major-chain rails.
+- **operator_gated** — rail technically functions but requires per-operator setup: pre-funded liquidity, licensed-agent registration (regulated fiat rails), API credentials with the payment processor, IP allow-listing.
+- **closed_data** — rail targets a permissioned or non-public network. Rail shape is defined for forward compatibility but the path cannot run from an open operator.
+- **bilateral** — rail runs only between counterparties with a pre-existing bilateral agreement (custom settlement contract, dedicated escrow agent, contracted clearing service).
+- **mocked** — settlement path is stubbed for development or testing. MUST NOT be presented as a production rail.
+- **disabled** — rail exists in the registry but the steward has marked it not-for-use. Orchestrators MUST NOT initiate new sessions selecting disabled rails; in-flight sessions continue.
+- **failed** — rail’s underlying network or asset path is currently broken (chain congestion preventing settlement, asset contract paused, bridge offline).
+
 **Orchestrator obligations.** (RAV-R1) An orchestrator MUST inspect rail availability before selecting a rail for a session. (RAV-R2) An orchestrator MUST NOT select rails with availability values disabled or failed. (RAV-R3) An orchestrator MAY select rails with availability values operator_gated, closed_data, or bilateral only if the relevant operator-side configuration is in place; this is a runtime preflight check, not a static property of the rail. (RAV-R4) When a rail in an in-flight session transitions from live to failed mid-session, the orchestrator MUST fail the session with errorClass = substrate (rail is non-operational) rather than counterparty.
 **Steward obligations.** Same as recipe availability (RAV-5, RAV-6, RAV-7 in §7.4.5) applied to rails. The steward maintains availability values current; transitions are signed and anchored revisions; availability is per-rail-version.
 
@@ -815,7 +2338,42 @@ The v1 closed set. Each is a PhaseType from chapter 6’s closed enumeration, wi
 #### 9.5.1 Common contract
 
 Every pay-* phase handler MUST: (PC-1) accept a PaymentPhaseInput conforming to the shape below; (PC-2) produce SettlementEvidence anchored via SR-2 at dacs4:payment:{jobId}:{railId} (or substrate equivalent); (PC-3) return a PhaseHandlerResult with attestationRef pointing to the evidence; (PC-4) classify outcomes as exactly one of ok: true (payment confirmed at the chain’s finality semantics), ok: false with errorClass: "permanent" (refused by chain, insufficient balance, invalid signature), errorClass: "transient" (RPC failure, mempool congestion), errorClass: "counterparty" (AP2 mandate revoked, x402 server refused), errorClass: "substrate" (SR-2 unavailable), or errorClass: "settlement-atomicity" (cross-chain only; lock succeeded on one side, the other side timed out).
-type PaymentPhaseInput = {jobId: stringagreement: AgreementDocument // pinned at commit-agreementrail: RailDefinition // pinned at session startpayer: {bundleHash: stringprimaryClaim: ClaimReferencepayingKey: ClaimReference// MUST appear in payer's bundle.claims}payee: {bundleHash: stringprimaryClaim: ClaimReferencepayeeAddress: string // rail-specific destination}amount: PriceTerm// from agreement.terms.price; rail-validatedsessionContext: SessionContext}
+
+```
+type PaymentPhaseInput = {
+
+  jobId: string
+
+  agreement: AgreementDocument         // pinned at commit-agreement
+
+  rail: RailDefinition                 // pinned at session start
+
+  payer: {
+
+    bundleHash: string
+
+    primaryClaim: ClaimReference
+
+    payingKey: ClaimReference          // MUST appear in payer's bundle.claims
+
+  }
+
+  payee: {
+
+    bundleHash: string
+
+    primaryClaim: ClaimReference
+
+    payeeAddress: string               // rail-specific destination
+
+  }
+
+  amount: PriceTerm                    // from agreement.terms.price; rail-validated
+
+  sessionContext: SessionContext
+
+}
+```
 
 #### 9.5.2 pay-evm-erc20
 
@@ -871,7 +2429,31 @@ Seller writes a Storage Program (SR-2) containing the deliverable payload. Addre
 
 Seller issues an EntitlementRecord granting the buyer time-bound access to a service.
 **Procedure.** Validates agreement.terms.deliverable.deliverableType == "entitlement"; seller constructs the EntitlementRecord:
-type EntitlementRecord = {entitlementVersion: "1"jobId: stringgrantee: ClaimReference// buyer primary claimgrantor: ClaimReference // seller primary claimstartsAt: number // unix msendsAt: number // unix ms; computed from agreement.terms.deliverable.durationSecscope: { service: string; tier?: string; quotas?: Record<string, number> }renewable: booleansignature: ComponentSignature}
+
+```
+type EntitlementRecord = {
+
+  entitlementVersion: "1"
+
+  jobId: string
+
+  grantee: ClaimReference              // buyer primary claim
+
+  grantor: ClaimReference               // seller primary claim
+
+  startsAt: number                     // unix ms
+
+  endsAt: number                       // unix ms; computed from agreement.terms.deliverable.durationSec
+
+  scope: { service: string; tier?: string; quotas?: Record<string, number> }
+
+  renewable: boolean
+
+  signature: ComponentSignature
+
+}
+```
+
 Seller signs the EntitlementRecord over the domain-separated payload "dacs-entitlement:v1:" || sha256(canonical_JCS(record_without_signature)) per chapter 7§7.7; anchors the EntitlementRecord via SR-2 at dacs4:entitlement:{jobId}; constructs SettlementEvidence; returns success. Buyer presents the EntitlementRecord (or its hash + anchor) at the service endpoint to access the entitled service. The service endpoint verifies the signature and anchor, checks now is within [startsAt, endsAt], and serves accordingly.
 **Renewal.** If renewable: true and the buyer re-pays before endsAt, the seller MAY issue a new EntitlementRecord with extended endsAt and the same jobId. Renewal records MUST be anchored separately.
 
@@ -883,14 +2465,86 @@ Seller delivers a payload whose authenticity is attested via DACS-2 (e.g., the p
 ### 9.7 Settlement evidence
 
 The uniform record produced by every payment and delivery phase. Anchored on the substrate; referenced by DACS-5.
-type SettlementEvidence = {evidenceVersion: "1"jobId: stringphase: PaymentPhaseType | DeliveryPhaseTypeoutcome: "success" | "failure"reason?: string// when outcome == "failure"// Payment evidencepaymentTxRefs?: ChainTxRef[]paymentAmount?: PriceTerm// actual settled amountpaymentFee?: PriceTerm // chain or provider fee// Delivery evidencedeliverableContentHash?: stringdeliverableAnchor?: { kind: string; locator: string }attestationRef?: AttestationRef// for deliver-attested-payload// Optional cross-referencesamendmentRefs?: AttestationRef[] // refunds / partial refunds linked hereobservedAt: number // unix mssignature: ComponentSignature// signer is the phase orchestrator}type PaymentPhaseType = "pay-evm-erc20" | "pay-solana-spl"| "pay-cross-chain-htlc" | "pay-cross-chain-liquidity-tank"| "pay-ap2" | "pay-x402"type DeliveryPhaseType = "deliver-storage-program" | "deliver-entitlement" | "deliver-attested-payload"
+
+```
+type SettlementEvidence = {
+
+  evidenceVersion: "1"
+
+  jobId: string
+
+  phase: PaymentPhaseType | DeliveryPhaseType
+
+  outcome: "success" | "failure"
+
+  reason?: string                              // when outcome == "failure"
+
+  // Payment evidence
+
+  paymentTxRefs?: ChainTxRef[]
+
+  paymentAmount?: PriceTerm                    // actual settled amount
+
+  paymentFee?: PriceTerm                       // chain or provider fee
+
+  // Delivery evidence
+
+  deliverableContentHash?: string
+
+  deliverableAnchor?: { kind: string; locator: string }
+
+  attestationRef?: AttestationRef              // for deliver-attested-payload
+
+  // Optional cross-references
+
+  amendmentRefs?: AttestationRef[]             // refunds / partial refunds linked here
+
+  observedAt: number                           // unix ms
+
+  signature: ComponentSignature                // signer is the phase orchestrator
+
+}
+
+type PaymentPhaseType = "pay-evm-erc20" | "pay-solana-spl"
+
+                      | "pay-cross-chain-htlc" | "pay-cross-chain-liquidity-tank"
+
+                      | "pay-ap2" | "pay-x402"
+
+type DeliveryPhaseType = "deliver-storage-program" | "deliver-entitlement" | "deliver-attested-payload"
+```
+
 Canonical form is RFC 8785 JCS of the SettlementEvidence with the signature field omitted. Evidence hash is sha256(canonical_form), hex-encoded. The signature is computed over the domain-separated payload per chapter 7§7.7:
 signed_bytes := "dacs-evidence:v1:" || evidence_hash
 
 #### 9.7.1 Refunds and partial refunds
 
 Refunds are not a separate phase type in v1. A refund is modelled as a SettlementAmendment record anchored after the original SettlementEvidence:
-type SettlementAmendment = {amendmentVersion: "1"jobId: stringamendsEvidenceRef: AttestationRef// points to the SettlementEvidence being amendedamendmentType: "refund" | "partial-refund" | "correction"refundAmount?: PriceTermrefundTxRefs?: ChainTxRef[]reason: stringobservedAt: numbersignature: ComponentSignature// signed by the refunding party (typically seller)}
+
+```
+type SettlementAmendment = {
+
+  amendmentVersion: "1"
+
+  jobId: string
+
+  amendsEvidenceRef: AttestationRef    // points to the SettlementEvidence being amended
+
+  amendmentType: "refund" | "partial-refund" | "correction"
+
+  refundAmount?: PriceTerm
+
+  refundTxRefs?: ChainTxRef[]
+
+  reason: string
+
+  observedAt: number
+
+  signature: ComponentSignature        // signed by the refunding party (typically seller)
+
+}
+```
+
 SettlementAmendment is anchored via SR-2 at dacs4:amendment:{jobId}:{evidenceHash}:{amendmentIndex}. The amendment signature is computed over the domain-separated payload "dacs-amendment:v1:" || sha256(canonical_JCS(amendment_without_signature)) per chapter 7§7.7. The DACS-5 session record includes amendments in the bundle if they arrive before bundle finalisation.
 
 ### 9.8 Cross-chain atomic settlement (SR-5)
@@ -903,6 +2557,12 @@ Atomic settlement across chains requires SR-5: either substrate-native cross-cha
 ### 9.9 Pipeline composition
 
 A listing’s pipeline declares the order of payment and delivery phases. Common patterns:
+
+- **Pay-then-deliver** (default for trusted seller; AP2 mandate, x402 micropayment): [pay-*, deliver-*].
+- **Deliver-then-pay** (for cheap delivery / expensive verification; e.g. a free data preview + paid full fetch): [deliver-*, pay-*]. Risk shifts to seller.
+- **Escrow** (HTLC, ERC-8183 future): [pay-cross-chain-htlc (lock), deliver-*, pay-cross-chain-htlc (reveal)]. Modelled as a single pay-cross-chain-htlc phase with internal stages; the deliver-* phase between lock and reveal MUST complete successfully before reveal proceeds.
+- **Streamed entitlement** (multi-tranche subscription): [pay-*, deliver-entitlement] in a loop; each iteration is a fresh jobId.
+
 **Conformance.** (PIPE-1) A pipeline MUST contain at least one pay-*phase and at least one deliver-* phase. (PIPE-2) Phase ordering MUST be deterministic; the listing’s declared order is normative. (PIPE-3) If a pay-*phase is followed by a deliver-* phase, the deliver-*phase MUST NOT execute until the pay-* phase returns ok: true. (PIPE-4) If a deliver-*phase is followed by a pay-* phase, the pay-*phase MUST NOT execute until the deliver-* phase returns ok: true. (PIPE-5) Pipelines MAY repeat phases (e.g., two pay-* phases for buyer+platform-fee split); each invocation produces independent SettlementEvidence.
 
 ### 9.10 Conformance summary
@@ -951,6 +2611,7 @@ A listing’s pipeline declares the order of payment and delivery phases. Common
 ### 9.14 Phase parameters reference card
 
 A single-table summary of phase types, their parameters (from listing PhaseStep), and the SettlementEvidence they produce, for implementers.
+
 | Phase type | Parameters (PhaseStep) | Evidence txRef kind |
 | --- | --- | --- |
 | pay-evm-erc20 | {rail: railId}; rail.parameters.finalityBlocks optional | evm |
@@ -964,11 +2625,20 @@ A single-table summary of phase types, their parameters (from listing PhaseStep)
 | deliver-attested-payload | none (driven by listing.offering.deliverable) | n/a + attestationRef |
 
 ## Chapter 10 — DACS-5: Verify
+
 **Stage:** Verify (5th of 5). **Status:** Draft (part of DACS v0.1). **Depends on:** SR-1 (preferred for cross-substrate primary-claim keying), SR-2 (required for bundle anchoring); composes with ERC-8004 reputation registry as an OPTIONAL publication surface. **Used by:** all subsequent DACS-1 sessions (reputation lookups), external auditors and regulators.
 
 ### 10.1 Abstract
 
 DACS-5 specifies how a completed session is anchored, signed, and converted into a reputation signal. It defines:
+
+- A **session record schema** — the live, mutable state document the orchestrator maintains while a session runs. Holds phase results, error classifications, and the running event log. Off-chain by default.
+- An **attestation bundle format** — the frozen end-of-session artifact, signed by both parties, anchored via SR-2. Bundles are the audit unit.
+- A **session-state machine** — the deterministic state transitions from "draft" through "completed", "failed-perm", "failed-counterparty", "failed-substrate", or "aborted".
+- A **reputation derivation algorithm** — a deterministic, per-primary-claim function from a set of bundles to a small set of headline metrics (completion rate, dispute rate, average rating, observed transactional volume).
+- An **optional rate phase** — a counterparty rating phase that produces a RatingRecord referenced from the bundle.
+- An **ERC-8004 publication surface** — the recommended mapping from DACS-5 reputation metrics to ERC-8004 reputation/validation registry entries.
+
 Reputation is keyed against the **primary identity claim** of the bundle, not against a wallet, signing key, or session pubkey. This prevents low-tier reputation from laundering into high-tier presentations.
 
 ### 10.2 Motivation
@@ -981,7 +2651,84 @@ A separate concern: **reputation keying**. A party that holds a $0.01 micropayme
 ### 10.3 Session record
 
 The live, mutable state document an orchestrator maintains during a session.
-type SessionRecord = {recordVersion: "1"jobId: string// ULID or substrate-equivalentstate: SessionStatelistingRef: { listingId: string; version: number; contentHash: string }parties: SessionParty[]// buyer + seller (+ optionally orchestrator)pipeline: PhaseStep[]phaseResults: PhaseEntry[] // one per executed phasestartedAt: number// unix mslastUpdatedAt: numberendedAt?: number // set on terminal staterecipeRegistryVersion: number// DACS-2 registry pinned at session startrailRegistryVersion: number// DACS-4 registry pinned at session startamendments?: AttestationRef[]// refunds and other amendments}type SessionState =| "draft"| "vet-pending" | "vet-completed" | "vet-failed"| "negotiate-pending" | "negotiate-completed" | "negotiate-failed"| "commit-pending" | "commit-completed"| "settle-pending" | "settle-completed" | "settle-failed"| "rate-pending" | "rate-completed"| "finalised"| "aborted-by-self" | "aborted-by-counterparty"| "substrate-failure-paused"type SessionParty = {role: "buyer" | "seller" | "orchestrator"bundleHash: string // sha256 of the verified IdentityBundleprimaryClaim: ClaimReference // bundle.presentedByvetRecordRef?: AttestationRef// post-Vet}type PhaseEntry = {index: number// position in pipelinestep: PhaseStepinvokedAt: numberresult: PhaseHandlerResultcontextDelta: Record<string, unknown>// merged into running context}
+
+```
+type SessionRecord = {
+
+  recordVersion: "1"
+
+  jobId: string                              // ULID or substrate-equivalent
+
+  state: SessionState
+
+  listingRef: { listingId: string; version: number; contentHash: string }
+
+  parties: SessionParty[]                    // buyer + seller (+ optionally orchestrator)
+
+  pipeline: PhaseStep[]
+
+  phaseResults: PhaseEntry[]                 // one per executed phase
+
+  startedAt: number                          // unix ms
+
+  lastUpdatedAt: number
+
+  endedAt?: number                           // set on terminal state
+
+  recipeRegistryVersion: number              // DACS-2 registry pinned at session start
+
+  railRegistryVersion: number                // DACS-4 registry pinned at session start
+
+  amendments?: AttestationRef[]              // refunds and other amendments
+
+}
+
+type SessionState =
+
+  | "draft"
+
+  | "vet-pending" | "vet-completed" | "vet-failed"
+
+  | "negotiate-pending" | "negotiate-completed" | "negotiate-failed"
+
+  | "commit-pending" | "commit-completed"
+
+  | "settle-pending" | "settle-completed" | "settle-failed"
+
+  | "rate-pending" | "rate-completed"
+
+  | "finalised"
+
+  | "aborted-by-self" | "aborted-by-counterparty"
+
+  | "substrate-failure-paused"
+
+type SessionParty = {
+
+  role: "buyer" | "seller" | "orchestrator"
+
+  bundleHash: string                         // sha256 of the verified IdentityBundle
+
+  primaryClaim: ClaimReference               // bundle.presentedBy
+
+  vetRecordRef?: AttestationRef              // post-Vet
+
+}
+
+type PhaseEntry = {
+
+  index: number                              // position in pipeline
+
+  step: PhaseStep
+
+  invokedAt: number
+
+  result: PhaseHandlerResult
+
+  contextDelta: Record<string, unknown>      // merged into running context
+
+}
+```
 
 #### 10.3.1 State transitions
 
@@ -995,7 +2742,78 @@ SessionRecord is off-chain by default. The orchestrator persists it locally. Cou
 ### 10.4 Attestation bundle
 
 The frozen end-of-session artifact. Signed by all parties; anchored via SR-2.
-type AttestationBundle = {bundleVersion: "1"jobId: stringoutcome: "completed" | "failed-perm" | "failed-counterparty" | "failed-substrate" | "aborted-by-self" | "aborted-by-other"listingRef: { listingId: string; version: number; contentHash: string }agreementRef?: AttestationRef // present iff outcome != "aborted-by-*" before commit-agreementparties: BundleParty[]phaseSummary: BundlePhaseEntry[]vetRecords: AttestationRef[]// composite verification recordssettlementEvidence: AttestationRef[]amendments?: AttestationRef[]ratingRefs?: AttestationRef[] // when the rate phase ranrecipeRegistryVersion: number // DACS-2 registry pinned at session startrailRegistryVersion: number // DACS-4 registry pinned at session startfinalisedAt: numbersignatures: BundleSignature[] // both buyer and seller (and orchestrator if separate)}type BundleParty = {role: "buyer" | "seller" | "orchestrator"bundleHash: stringprimaryClaim: ClaimReference}type BundlePhaseEntry = {index: numberkind: PhaseTypeoutcome: "ok" | "fail"errorClass?: "permanent" | "transient" | "counterparty" | "substrate" | "settlement-atomicity"txRefs?: ChainTxRef[]attestationRef?: AttestationRef}type BundleSignature = {party: ClaimReference // primary claim of the signeralgorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"value: string // signature over bundle hash}
+
+```
+type AttestationBundle = {
+
+  bundleVersion: "1"
+
+  jobId: string
+
+  outcome: "completed" | "failed-perm" | "failed-counterparty" | "failed-substrate" | "aborted-by-self" | "aborted-by-other"
+
+  listingRef: { listingId: string; version: number; contentHash: string }
+
+  agreementRef?: AttestationRef               // present iff outcome != "aborted-by-*" before commit-agreement
+
+  parties: BundleParty[]
+
+  phaseSummary: BundlePhaseEntry[]
+
+  vetRecords: AttestationRef[]                // composite verification records
+
+  settlementEvidence: AttestationRef[]
+
+  amendments?: AttestationRef[]
+
+  ratingRefs?: AttestationRef[]               // when the rate phase ran
+
+  recipeRegistryVersion: number               // DACS-2 registry pinned at session start
+
+  railRegistryVersion: number                 // DACS-4 registry pinned at session start
+
+  finalisedAt: number
+
+  signatures: BundleSignature[]               // both buyer and seller (and orchestrator if separate)
+
+}
+
+type BundleParty = {
+
+  role: "buyer" | "seller" | "orchestrator"
+
+  bundleHash: string
+
+  primaryClaim: ClaimReference
+
+}
+
+type BundlePhaseEntry = {
+
+  index: number
+
+  kind: PhaseType
+
+  outcome: "ok" | "fail"
+
+  errorClass?: "permanent" | "transient" | "counterparty" | "substrate" | "settlement-atomicity"
+
+  txRefs?: ChainTxRef[]
+
+  attestationRef?: AttestationRef
+
+}
+
+type BundleSignature = {
+
+  party: ClaimReference                       // primary claim of the signer
+
+  algorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"
+
+  value: string                               // signature over bundle hash
+
+}
+```
 
 #### 10.4.1 Canonical serialisation, hash, and domain-separated signature
 
@@ -1008,7 +2826,25 @@ The "dacs-bundle:v1:" string prefix prevents cross-protocol signature confusion:
 The bundle MUST be anchored via SR-2. **Two-sided anchoring scheme.** Each signing party (buyer, seller, and orchestrator if distinct) anchors its own bundle at a party-specific address: stor-{sha256(jobId + "-bundle-" + role)} where role is "buyer", "seller", or "orchestrator". In the happy case both sides’ bundles are canonically equal and consumers can read either; in the divergence case both sides are independently retrievable for dispute purposes (see §10.4.3).
 Bundles MUST fit within the substrate’s storage-cap soft limit (128 KB on Demos Storage Programs).
 **Extended-pointer pattern for large sessions.** Sessions with extensive evidence (large transcripts, attestation chains, multi-party verifications, e.g. a sealed-envelope auction with 50 bidders’ commits and reveals) MAY exceed the size cap. In that case the bundle at the canonical address contains a pointer record:
-type BundleExtendedPointer = {bundleVersion: "1"pointerKind: "extended"fullBundleUrl: stringfullBundleContentHash: stringsegmentRefs?: AttestationRef[]// optional segmented anchoringsignature: ComponentSignature}
+
+```
+type BundleExtendedPointer = {
+
+  bundleVersion: "1"
+
+  pointerKind: "extended"
+
+  fullBundleUrl: string
+
+  fullBundleContentHash: string
+
+  segmentRefs?: AttestationRef[]              // optional segmented anchoring
+
+  signature: ComponentSignature
+
+}
+```
+
 and the full bundle is hosted externally; fullBundleContentHash binds it. Consumers MUST verify the external bundle’s hash against the on-chain pointer before treating it as authoritative.
 
 #### 10.4.3 Bundle production rules
@@ -1021,11 +2857,117 @@ Two parties producing independent bundles for the same session MUST converge on 
 ### 10.5 Reputation derivation
 
 A deterministic function from a set of attestation bundles to a small set of headline reputation metrics, keyed by primary claim.
-type ReputationDerivation = {derivationVersion: "1"partyPrimaryClaim: ClaimReference// the party being scoredwindowStart: number// unix mswindowEnd: number// unix msbundleCount: numbermetrics: {completionRate: number | null// null when bundleCount == 0counterpartyDisputeRate: number | nullaverageBuyerRating: number | nullaverageSellerRating: number | nullobservedTransactionalVolume: PriceTerm[] // sum of agreement.terms.price, by currency}computedAt: numberbundleRefs: AttestationRef[] // the bundles aggregated}
+
+```
+type ReputationDerivation = {
+
+  derivationVersion: "1"
+
+  partyPrimaryClaim: ClaimReference            // the party being scored
+
+  windowStart: number                          // unix ms
+
+  windowEnd: number                            // unix ms
+
+  bundleCount: number
+
+  metrics: {
+
+    completionRate: number | null              // null when bundleCount == 0
+
+    counterpartyDisputeRate: number | null
+
+    averageBuyerRating: number | null
+
+    averageSellerRating: number | null
+
+    observedTransactionalVolume: PriceTerm[]   // sum of agreement.terms.price, by currency
+
+  }
+
+  computedAt: number
+
+  bundleRefs: AttestationRef[]                 // the bundles aggregated
+
+}
+```
 
 #### 10.5.1 Derivation algorithm
 
-derive(party, bundles, windowStart, windowEnd):scoped := [b for b in bundleswhere party in b.parties.primaryClaimAND windowStart <= b.finalisedAt <= windowEnd]if scoped is empty:return ReputationDerivation with bundleCount=0, all metrics nullcompleted := [b for b in scoped where b.outcome == "completed"]failed_perm := [b for b in scoped where b.outcome == "failed-perm"]failed_counterparty := [b for b in scoped where b.outcome == "failed-counterparty"]failed_substrate := [b for b in scoped where b.outcome == "failed-substrate"]aborted_by_self := [b for b in scoped where b.outcome == "aborted-by-self"AND aborter == party]aborted_by_other := [b for b in scoped where b.outcome == "aborted-by-other"AND counterparty_aborted_against == party]party_fault_count := |aborted_by_self| + |failed_perm where party_at_fault|counterparty_fault_count := |aborted_by_other| + |failed_counterparty against party|party_fault_denom := |scoped| − |failed_substrate|completionRate := |completed| / party_fault_denom when party_fault_denom > 0 else nullcounterpartyDisputeRate := counterparty_fault_count / party_fault_denomsame gate# Collect ratings by fetching each bundle's referenced rating recordsratings_targeting_party_as_seller := []ratings_targeting_party_as_buyer := []for b in scoped:for ratingRef in (b.ratingRefs or []):r := fetch_and_verify_rating(ratingRef) // RatingRecordif r.target == party AND r.targetRole == "seller":ratings_targeting_party_as_seller.append(r.value)if r.target == party AND r.targetRole == "buyer":ratings_targeting_party_as_buyer.append(r.value)averageSellerRating := mean(ratings_targeting_party_as_seller)when ratings_targeting_party_as_seller else nullaverageBuyerRating:= mean(ratings_targeting_party_as_buyer)when ratings_targeting_party_as_buyer else nullvolume := groupSumByCurrency(b.agreementRef.terms.pricefor b in scoped where agreementRef present)return ReputationDerivation with computed metrics
+```
+derive(party, bundles, windowStart, windowEnd):
+
+  scoped := [b for b in bundles
+
+              where party in b.parties.primaryClaim
+
+              AND windowStart <= b.finalisedAt <= windowEnd]
+
+  if scoped is empty:
+
+    return ReputationDerivation with bundleCount=0, all metrics null
+
+  completed := [b for b in scoped where b.outcome == "completed"]
+
+  failed_perm := [b for b in scoped where b.outcome == "failed-perm"]
+
+  failed_counterparty := [b for b in scoped where b.outcome == "failed-counterparty"]
+
+  failed_substrate := [b for b in scoped where b.outcome == "failed-substrate"]
+
+  aborted_by_self := [b for b in scoped where b.outcome == "aborted-by-self"
+
+                                    AND aborter == party]
+
+  aborted_by_other := [b for b in scoped where b.outcome == "aborted-by-other"
+
+                                    AND counterparty_aborted_against == party]
+
+  party_fault_count := |aborted_by_self| + |failed_perm where party_at_fault|
+
+  counterparty_fault_count := |aborted_by_other| + |failed_counterparty against party|
+
+  party_fault_denom := |scoped| − |failed_substrate|
+
+  completionRate := |completed| / party_fault_denom   when party_fault_denom > 0 else null
+
+  counterpartyDisputeRate := counterparty_fault_count / party_fault_denom  same gate
+
+  # Collect ratings by fetching each bundle's referenced rating records
+
+  ratings_targeting_party_as_seller := []
+
+  ratings_targeting_party_as_buyer := []
+
+  for b in scoped:
+
+    for ratingRef in (b.ratingRefs or []):
+
+      r := fetch_and_verify_rating(ratingRef)   // RatingRecord
+
+      if r.target == party AND r.targetRole == "seller":
+
+        ratings_targeting_party_as_seller.append(r.value)
+
+      if r.target == party AND r.targetRole == "buyer":
+
+        ratings_targeting_party_as_buyer.append(r.value)
+
+  averageSellerRating := mean(ratings_targeting_party_as_seller)
+
+                         when ratings_targeting_party_as_seller else null
+
+  averageBuyerRating  := mean(ratings_targeting_party_as_buyer)
+
+                         when ratings_targeting_party_as_buyer else null
+
+  volume := groupSumByCurrency(b.agreementRef.terms.price
+
+                               for b in scoped where agreementRef present)
+
+  return ReputationDerivation with computed metrics
+```
+
 "party_at_fault" is recorded in the bundle’s phaseSummary errorClass (counterparty implies the other party; permanent on a non-cross-chain rail with no settlement-atomicity flag and a successful pre-pay state generally implies the local party at fault). The classification rules are spelled out in the per-phase errorClass tables in chapters 7 and 9. **failed-substrate sessions** are excluded from the party-fault denominator: party_fault_denom = |scoped| − |failed_substrate|. This ensures substrate-induced failures do not damage either party’s reputation. Metrics with denominator > 0 produce numeric values; metrics with denominator == 0 (e.g., bundleCount=0, or all sessions failed-substrate) produce null — distinct from zero, signalling "no signal" rather than "zero signal". The averageBuyerRating / averageSellerRating metrics are computed by walking each bundle’s ratingRefs, fetching the referenced RatingRecord, verifying its signature, and aggregating the values whose target matches the scored party; the metric is null when no qualifying ratings exist.
 
 #### 10.5.2 Per-primary-claim keying
@@ -1039,7 +2981,32 @@ Derivation MAY be computed: (a) lazily by a querying party (over a set of bundle
 ### 10.6 The rate phase (optional)
 
 A DACS-5 phase that produces structured ratings between parties at session end.
-type RatingRecord = {ratingVersion: "1"jobId: stringrater: ClaimReference// primary claim of the rating partytarget: ClaimReference // primary claim of the rated partytargetRole: "buyer" | "seller"value: number// 1..5 inclusive integerfreeText?: string// optional; max 1000 charsdimensions?: Record<string, number>// optional per-dimension scores (timeliness, communication, etc.)ratedAt: numbersignature: ComponentSignature}
+
+```
+type RatingRecord = {
+
+  ratingVersion: "1"
+
+  jobId: string
+
+  rater: ClaimReference                        // primary claim of the rating party
+
+  target: ClaimReference                       // primary claim of the rated party
+
+  targetRole: "buyer" | "seller"
+
+  value: number                                // 1..5 inclusive integer
+
+  freeText?: string                            // optional; max 1000 chars
+
+  dimensions?: Record<string, number>          // optional per-dimension scores (timeliness, communication, etc.)
+
+  ratedAt: number
+
+  signature: ComponentSignature
+
+}
+```
 
 #### 10.6.1 Phase contract
 
@@ -1100,6 +3067,7 @@ EVM-side consumers MAY read ERC-8004 entries as a discovery surface for DACS-5 b
 **Bundle anchor unavailability.** *Threat:* the SR-2 anchor becomes unreadable after the session ends (e.g. storage program purged, IPFS unpinned). *Mitigation:* on-substrate anchoring (Demos Storage Programs) provides indefinite availability under substrate operation. Off-substrate anchoring (IPFS, HTTPS) is best-effort. Listings concerned with long-term auditability SHOULD use on-substrate anchoring for bundles regardless of which surface the rest of the session uses.
 **Time-bound reputation windows.** *Threat:* an old, no-longer-representative reputation is presented as current. *Mitigation:* derivations are window-bounded; consumers querying reputation MUST specify a window and SHOULD weight recent windows more heavily. The algorithm does not specify weighting (consumers choose); it does require explicit window bounds in every derivation.
 **ERC-8004 write spamming.** *Threat:* an attacker writes many fake ERC-8004 entries pointing at fabricated bundles. *Mitigation:* ERC-8004 entries are pointers; consumers MUST fetch and validate the bundle. Fake bundles fail at validation. The cost of writing many ERC-8004 entries (gas) is a natural rate limit; DACS-5 publishers SHOULD additionally enforce per-session rate limits.
+
 ## Chapter 11 — Stewardship, versioning, follow-on
 
 ### 11.1 Stewardship and versioning
@@ -1159,7 +3127,9 @@ The transition from single-steward (PA-2) to multi-party constituted governance 
 Agent commerce is moving from prototype to production. DACS is a contribution toward keeping the lifecycle on public infrastructure: a stack that composes with the existing open standards where they work, fills the gaps where they don’t, and makes substrate dependencies explicit. A reference implementation runs the lifecycle end-to-end on the Demos substrate; an independent third-party reference implementation (PATH-OS Labs’ pathos-dacs-ref) implements the DACS-1 + DACS-2-GLEIF + DACS-5 verifier subset against the same spec.
 What this document is **not**: a finished standard ready for unsupervised production at every scale. The honest list of remaining work — beyond the per-stage follow-on topics in §11.2 — includes: protocol-level wire specifications for SR-3 and SR-4 (currently trust-property specified only); expansion of independent reference-implementation coverage beyond the current third-party verifier; engagement with the maintainers of every composed standard (ERC-8004, AP2 via FIDO Alliance, W3C VC, A2A) to convert "DACS composes with X" from a unilateral claim into a documented cross-maintainer conversation; a unified threat-model audit (§12) reviewed by parties outside the current stewardship; constitution of multi-party governance (§11.2.6); and conformance test suites (§14) ready for implementers to run against.
 Some of these will reveal gaps that need new work, not just refinement. The intent of v1 is to ship a coherent baseline that the next 6–12 months of implementation experience and ecosystem engagement can sharpen. It is not the final word on agent commerce.
+
 ## Chapter 12 — Unified threat model
+
 This chapter collects, partitions, and rationalises the per-chapter security considerations into a unified threat model. It is the artifact a security review would start from. Where this chapter restates per-chapter threats, the per-chapter mitigation is normative; this chapter’s framing is informative.
 
 ### 12.1 Scope and non-goals
@@ -1170,6 +3140,7 @@ Non-goals: DACS does **not** prevent collusion between buyer and seller (two par
 ### 12.2 Adversary model
 
 The threat model assumes adversaries with the following capabilities; per-threat mitigations specify which class is being defended against.
+
 | Adversary class | Capabilities | Assumed not capable of |
 | --- | --- | --- |
 | Network observer | Reads all public-chain traffic; can perform timing analysis on commitments; cannot read private-channel contents. | Breaking standard cryptographic primitives (sha256, Ed25519, ECDSA-secp256k1 under standard assumptions). |
@@ -1187,9 +3158,16 @@ The threat model assumes adversaries with the following capabilities; per-threat
 
 A reader following the audit trail from a DACS-5 bundle backwards through the lifecycle crosses these trust boundaries; each boundary has its own assumptions.
 
+- **Party-to-party cryptographic boundary.** Every signed artifact (listing, bundle, agreement, evidence, rating) is verifiable against the signer’s primary-claim key. Trust assumption: the signing key has not been compromised at or before the artifact’s timestamp. Mitigation: key-rotation handling per §6.6 (DACS-1 security considerations).
+- **Party-to-authority boundary.** A DACS-2 VerifyResult of method consensus-backed-proxy depends on the authority (GLEIF, FINRA, OFAC, etc.) being honest at fetch time and on the TLS PKI between the substrate validators and the authority. Mitigation: the recipe’s alternatives mechanism (§7.4) lets high-stakes schemes require multi-method verification; the v1.1 strengthening (§7.3.5) will tighten the consensus-backed-proxy method itself.
+- **Party-to-substrate boundary.** Every anchor (listings, bundles, evidence, recipes, rails) depends on the substrate’s SR-2 implementation for availability and content integrity. Trust assumption: substrate validator-set is honest per the substrate’s consensus protocol. Mitigation: on-substrate anchoring (Storage Programs on Demos) provides indefinite availability; off-substrate anchoring (IPFS, HTTPS) is best-effort.
+- **Substrate-to-substrate boundary (cross-chain).** SR-5 atomic settlement crosses chains and depends on the SR-5 mechanism’s trust model (HTLC: cryptographic only; Liquidity Tank: substrate operator; substrate-native: substrate consensus). Mitigation: explicit rail-trust-model disclosure in rail definitions; per-stake rail selection.
+- **Party-to-recipe-registry boundary.** Verification routes through recipes whose signing authority is the registry steward (currently KyneSys Labs, per §7.4.4 and §11.1.1). Trust assumption: the steward’s signing key is honest and uncompromised. Mitigation: monotonic recipe-version pinning per session; emergency-revision discipline (§7.4.4). Residual risk under PA-2: steward-key compromise; PA-3 multi-signature governance is the v1.1+ mitigation pathway.
+
 ### 12.4 Threat catalogue
 
 Every per-chapter security threat, indexed by adversary class and mitigation status. The threats are stated normatively in the per-chapter sections; this is the cross-reference.
+
 | Threat | Primary adversary | Where mitigated | Status |
 | --- | --- | --- | --- |
 | Forged listing | malicious counterparty | §6.6 + §7.7 (signatures + domain separator) | mitigated |
@@ -1229,43 +3207,223 @@ Every per-chapter security threat, indexed by adversary class and mitigation sta
 ### 12.5 Composite trust property
 
 A DACS-5 bundle that validates against all per-chapter conformance rules and whose contained references all dereference and validate provides the following composite trust property to a consumer: "Two or more parties identified by the named primary claims (with the trust profile each claim’s scheme implies) participated in a session against the named listing version, agreed to the named terms, exchanged the named settlements, and produced this audit record. The substrate operator did not collude with the parties to forge the record. The recipe registry was not compromised at the time of the verifications. The composed external standards (W3C VC, TLSNotary, ACME, etc.) behaved per their own security models." This is the composite security claim of DACS v1. Each clause has explicit mitigation in the per-chapter sections; each has explicit residual risk in this chapter’s adversary model.
+
 ## Chapter 13 — Glossary
+
 A single alphabetical glossary across all five per-stage standards, the front matter, and the back matter. Terms defined in multiple chapters are cross-referenced. This glossary is informative; per-chapter definitions are normative.
+
+- **AgreementDocument.** The canonical signed JSON document produced by a DACS-3 negotiation pattern, carrying the final agreed terms. Defined in §8.5.
+- **Anchor / Anchored.** Stored on the substrate such that an anchor reference (substrate-native pointer plus content hash) is sufficient for any party with substrate access to retrieve canonical content and verify integrity. Realised by SR-2.
+- **AttestationBundle.** The frozen end-of-session artifact, signed by all parties, anchored via SR-2. The DACS-5 audit unit. Defined in §10.4.
+- **AttestationRef.** A reference to an anchored attestation: anchor locator + content hash + (optional) signer. Defined in §7.5.
+- **Auto-accept commitment.** A pre-issued seller-side commitment authorising auto-acceptance of buyer signatures under negotiate-fixed-price. Defined in §8.4.1.
+- **Bundle (identity bundle).** An ordered set of claims a party presents about itself, each independently verifiable, plus a presentation signature. Defined in §6.3.2.
+- **BundleParty.** A party reference within a DACS-5 AttestationBundle. Defined in §10.4.
+- **Canonical form.** RFC 8785 JCS serialisation of a document with signature field(s) omitted.
+- **Catalog.** An off-chain index aggregating DACS-1 listings across many sellers for discovery. Defined in §6.3.6.
+- **CCI (Cross-Context Identities).** The Demos implementation of SR-1 — cross-substrate identity aggregation. Demos product feature; not a DACS specification term.
+- **Claim.** A fact a party asserts about itself.
+- **Claim reference / ClaimReference.** A typed identifier referring to the external system that holds a claim. Grammar in §6.3.1; type definition in §7.1.
+- **ClaimRequirement.** A listing-side declaration of which claims a buyer or seller bundle must include. Defined in §6.3.3.
+- **Commit-agreement.** The DACS-3 phase that anchors the agreement hash on the public chain. Defined in §8.6.
+- **CommitmentRecord.** The on-chain record produced by commit-agreement. Defined in §8.6.
+- **CompositeVerificationRecord.** The document the DACS-2 vet-credentials phase produces, aggregating freshness checks, supplementary signals, and deal-specific claims. Defined in §7.7.
+- **Content hash.** sha256 hex of the canonical form of a document.
+- **DACS-1..5.** The five per-stage standards: Identify, Vet, Negotiate, Settle, Verify.
+- **DACS-X.** Anticipated future standard for dispute resolution; not part of v1.
+- **DAHR (Data Agnostic HTTPS Relay).** The Demos implementation of SR-3 — consensus-backed proxy attestation of HTTP responses.
+- **Deliverable / DeliverableSpec / DeliverableRef.** The thing being delivered to the buyer; spec defines its shape; ref points to a specific instance. Defined in §9.3.
+- **Domain separator.** A protocol-specific string prepended to a hash before signing, preventing cross-protocol signature replay. Universal registry in §7.7.
+- **EntitlementRecord.** A DACS-4 deliverable record granting time-bound access to a service. Defined in §9.6.2.
+- **errorClass.** A classification of why a phase failed: permanent, transient, counterparty, substrate, settlement-atomicity. Used in PhaseHandlerResult and BundlePhaseEntry.
+- **Evidence (SettlementEvidence).** The uniform record produced by every DACS-4 payment and delivery phase. Defined in §9.7.
+- **Extended-pointer pattern.** A pattern for handling artifacts larger than the substrate’s anchored-storage cap: the canonical address contains a pointer with externalUrl + externalContentHash; payload is hosted externally. Used by deliverables (§9.6.1) and bundles (§10.4.2).
+- **Fixed-price negotiation.** DACS-3 pattern in which the buyer accepts the listed terms. Defined in §8.4.1.
+- **HKDF.** The key derivation function specified in RFC 5869; used in HTLC preimage derivation per §9.5.4.
+- **HTLC.** Hash Time-Locked Contract; the generic atomic-swap pattern used by pay-cross-chain-htlc. §9.5.4.
+- **IdentityBundle.** See "Bundle".
+- **Indeterminate.** A DACS-2 VerifyResult.decision value indicating the authority returned a parseable response that conclusively neither confirmed nor denied the claim. Distinct from "error" (verifier could not reach a decision at all). §7.5.1.
+- **Error (decision value).** A DACS-2 VerifyResult.decision value indicating verification could not complete due to transport failure, parser exception, or other verifier-side failure. Distinct from "indeterminate" (authority answered, but ambiguously). §7.5.1.
+- **JCS.** JSON Canonicalization Scheme; RFC 8785; used for canonical-form serialisation throughout.
+- **jobId.** Per-session unique identifier; ULID or substrate-equivalent. Defined in §10.3.
+- **L2PS (Layer-2 Privacy Subnets).** The Demos implementation of SR-4 — identity-keyed private coordination channels.
+- **Liquidity Tank.** The Demos implementation of SR-5 — pre-funded cross-chain settlement primitive.
+- **Listing.** A signed, anchored JSON document declaring an agent’s offering. The canonical contract for a transaction. Defined in §6.3.4.
+- **ListingIndex / ListingSummary.** Discovery data structures; not the source of truth. Defined in §6.3.5–6.3.6.
+- **negotiate-fixed-price / negotiate-rfq / negotiate-sealed-envelope.** The three DACS-3 negotiation patterns. §8.4.
+- **PaymentRailRef / RailDefinition.** Reference to and full definition of a DACS-4 payment rail. §9.3, §9.4.
+- **Per-claim keying.** DACS-5 rule that reputation is keyed against the bundle’s primary identity claim, not a wallet or signing key. §10.5.2.
+- **Phase / PhaseStep / PhaseType.** A single unit of work in a session pipeline. PhaseType is the closed enumeration across DACS-2..5. §6.3.4.
+- **PhaseHandlerResult.** The return shape of every phase handler. §7.5 (front matter).
+- **Pipeline.** The ordered sequence of PhaseStep entries declared in a listing. §6.3.4.
+- **Presentation signature.** The signature on an identity bundle. §6.3.2.
+- **sr1-root presentation.** A bundle-presentation kind in which a single SR-1 root key co-signs every claim under one aggregate signature, producing a single cryptographic artifact for the whole bundle. The natural presentation for a party self-binding a single document. §6.3.2.
+- **Primary identity claim.** The claim within a bundle that serves as the canonical identifier of the party for reputation, audit, and addressing.
+- **Rate phase.** Optional DACS-5 phase producing structured ratings between parties. §10.6.
+- **RatingRecord.** A signed rating from one party about another. §10.6.
+- **Recipe.** A DACS-2 binding of claim scheme to verification method, parsing rules, and defaults. §7.4.
+- **Recipe availability.** A normative field on every Recipe declaring operational status: live | operator_gated | closed_data | bilateral | mocked | disabled | failed. Verifiers MUST inspect before running. §7.4.5.
+- **Rail availability.** A normative field on every RailDefinition declaring operational status, with the same value set and semantics as recipe availability. Orchestrators MUST inspect before selecting. §9.4.5.
+- **RFQ (Request For Quote).** DACS-3 bilateral negotiation pattern; bounded multi-turn offer-and-counter. §8.4.2.
+- **Sealed-envelope.** DACS-3 sealed-bid procurement pattern. §8.4.3.
+- **Session.** A per-transaction lifecycle from Identify through Verify.
+- **SessionContext.** The context object every phase handler receives. §7.5 (front matter).
+- **SessionRecord.** The orchestrator’s mutable working-state document. §10.3.
+- **SettlementAmendment.** A post-settlement record for refunds and corrections. §9.7.1.
+- **SIWD (Sign-In With Demos).** Demos-wallet authentication pattern; EIP-4361-style envelope. Used for bundle presentation signatures.
+- **SR-1..5.** Substrate requirements: SR-1 cross-substrate identity aggregation; SR-2 anchored immutable storage; SR-3 consensus-backed proxy attestation; SR-4 identity-keyed private coordination; SR-5 multi-chain coordinated atomic settlement. Defined in §5 (front matter).
+- **Stor-backed credential.** A DACS-1 claim scheme whose verification result is anchored as a Storage Program. §6.3.1.
+- **Storage Program.** The Demos implementation of SR-2 — content-addressed anchored key-value storage. 128 KB soft cap.
+- **Substrate.** The underlying blockchain or protocol stack that hosts a DACS implementation. Demos is the v1 reference substrate.
+- **Substrate-validator-set claim.** A ClaimReference identifying a substrate validator-set epoch; used as the signer for consensus-backed-proxy attestations. §7.5.
+- **TxRef / ChainTxRef.** Discriminated union of on-chain transaction references. §9.3.
+- **Universal signature scheme.** The cross-stack domain-separation scheme requiring every DACS signature to bind to a per-artifact-kind separator. §7.7.
+- **ULID.** Universally Unique Lexicographically Sortable Identifier; recommended jobId format.
+- **validator-set claim.** See "Substrate-validator-set claim".
+- **VerifyResult / VerifyResultRef.** The uniform record every DACS-2 method produces; reference to an anchored VerifyResult. §7.5.
+- **Vet-credentials phase.** The DACS-2 phase that runs verification across the counterparty’s bundle. §7.8.
+- **Well-known/agent.json.** The A2A capability-discovery surface that DACS extends with a dacs block. §6.3.5.
+
 ## Chapter 14 — Conformance test plan
+
 This chapter sketches the test categories an implementer should cover to claim conformance to each DACS standard. It is a **plan, not a test suite**; the test suite itself (test vectors, expected outputs, golden files) is produced separately and tracked alongside reference implementations. Where a chapter’s conformance summary enumerates labelled rules (e.g., BP-1, LR-2, CM-3), the test plan groups them into runnable categories.
 
 ### 14.1 DACS-1 — Identify
 
+- **Claim reference parser.** Test vectors for every v1 scheme: valid canonical form, valid non-canonical form (must canonicalise on read), invalid grammar (must reject), unknown-scheme handling (must not silently accept).
+- **Bundle producer (BP-1..BP-4).** Round-trip: produce bundle → canonical form → hash → sign-with-domain-separator → anchor. Verify each output against fixture.
+- **Bundle reader (BR-1..BR-4).** Accept-conformant-bundle, reject-unsigned-bundle, reject-missing-required-verifiedBy, treat-unknown-scheme-as-unverified.
+- **BundleRequirement matching.** All branches of the match algorithm: required-claim missing, required-claim failing-verification, oneOf-group satisfied/unsatisfied, primaryClaimSelector match/mismatch.
+- **Listing publisher (LP-1..LP-4).** Sign-with-domain-separator, anchor, version monotonicity, revocation marker publication.
+- **Listing reader (LR-1..LR-3).** Validation-order halt-on-first-failure (one test per validation step), revoked-listing refusal, size-cap rejection.
+- **Discovery.** well-known parser; catalog endpoint shape; anchor cross-check from ListingSummary.
+
 ### 14.2 DACS-2 — Vet
+
+- **Method common contract (CM-1..CM-5).** For each of the eight v1 methods: input-shape validation; outcome classification (pass/fail/indeterminate); attestation anchoring; VerifyResult emission with correct method field; canonical form + domain-separated signature.
+- **Recipe authoring (RA-1..RA-5).** Multi-sig signature with domain separator; canonical anchoring; version monotonicity; supersedes-on-replace.
+- **Recipe resolution.** Index lookup; content-hash verification; version pinning.
+- **Retry semantics (VP-R1..VP-R4).** Transient retry on error; permanent no-retry; new attestation on each retry; no-retry-on-indeterminate by default; retryOnIndeterminate flag honoured when set.
+- **Caching semantics (VP-C1..VP-C3).** Reuse within validUntil; record-update on reuse; maxAge override of recipe default.
+- **Aggregation.** Each branch of classify_required: missing, all-failing, all-indeterminate, all-errored, mixed-with-pass. oneOf groups: failure vs error vs indeterminate distinction. Precedence: failures > errors > indeterminates when classifying overall.
+- **Recipe and rail availability (§7.4.5, §9.4.5).** Every value in the closed enum produces the conformant orchestrator/verifier behaviour: RAV-1 through RAV-4 for recipes (no silent treatment as live; consumer surfacing; disabled/failed → error in aggregation; alternative availability not inheriting from default); RAV-R1 through RAV-R4 for rails (preflight inspection; no selection of disabled/failed; mid-session live→failed transition maps to substrate errorClass).
+- **Phase contract (VPC-1..VPC-4).** Order (Vet after Identify, before Negotiate); two-sided execution; anchor-before-return; fail-or-indeterminate handling.
 
 ### 14.3 DACS-3 — Negotiate
 
+- **Channel envelope.** Signature with channelmsg domain separator; sequence monotonicity; signature scope (excludes transport fields).
+- **Channel failure detection.** Liveness-bound exceeded → channel-failed classification; abort message round-trip.
+- **negotiate-fixed-price.** Live signature path; auto-accept commitment + instance-signature path; rejection of pre-issued per-instance signatures.
+- **negotiate-rfq (RFQ-1..RFQ-4).** maxTurns enforcement; turn-timeout enforcement; out-of-band-terms rejection by commit-agreement.
+- **negotiate-sealed-envelope (SE-1..SE-6).** commitDeadline enforcement (chain-timestamped); reveal-window enforcement; reveal-mismatch exclusion; deterministic selection (including rule-ref with content-hash check); rule-ref content-hash mismatch fails the phase.
+- **Agreement validation (§8.5.2).** Price-band check; rail-acceptance check; deliverable-conformance check; deadline-bound check; pattern-match check.
+- **commit-agreement (CA-1..CA-4).** Refuse advance until ok-true; double-commit rejection; immutability after anchor; domain-separated commitment signature.
+
 ### 14.4 DACS-4 — Settle
 
+- **Rail authoring (RD-1..RD-5).** Multi-sig with domain separator; anchoring; version monotonicity; railType/asset/network consistency.
+- **Payment common contract (PC-1..PC-4).** For each of the six pay-* phases: input-shape validation; anchored SettlementEvidence; PhaseHandlerResult with correct attestationRef; outcome classification across all errorClass values.
+- **pay-evm-erc20 / pay-solana-spl.** Decimal-conversion correctness (no float arithmetic); chain-finality wait; SettlementEvidence with correct txRef kind.
+- **pay-cross-chain-htlc (HTLC-1..HTLC-6).** buyerSalt entropy enforcement; HKDF preimage-derivation correctness; salt-non-reuse across sessions; pre-finality-reveal rejection; timelock-refund path; per-chain native hashlock functions (keccak256 on EVM, sha256 on Solana, blake2b on Cosmos) producing distinct hashlocks from the same preimage.
+- **pay-cross-chain-liquidity-tank.** BridgeOperation lifecycle ("empty" → "pending" → "completed" | "failed"); bridge_id recording; route-in-supported-scope validation.
+- **pay-ap2 / pay-x402.** Mandate-revocation handling; receipt-signature verification.
+- **Delivery phases.** deliver-storage-program with normal and extended-pointer payloads; deliver-entitlement with signature + anchor + scope; deliver-attested-payload composing DACS-2 attestation.
+- **Pipeline (PIPE-1..PIPE-5).** At-least-one-pay + at-least-one-deliver; deterministic ordering; pay-before-deliver ordering; deliver-before-pay ordering; phase repetition.
+
 ### 14.5 DACS-5 — Verify
+
+- **Session state transitions.** Each state → next-state pair from §10.3.1; reverse-direction rejection; substrate-failure-paused timeout to failed-substrate.
+- **Bundle production.** Two-sided anchoring at role-specific addresses; canonical-form equality between buyer and seller bundles in happy case; domain-separated signature ("dacs-bundle:v1:"); extended-pointer pattern for oversized bundles.
+- **Bundle consumption.** Two-sided lookup; one-sided-bundle → aborted-by-self classification; divergent-bundles → disputed classification.
+- **Reputation derivation.** All outcome partitions (completed / failed-perm / failed-counterparty / failed-substrate / aborted-by-self / aborted-by-other); party-fault denominator excluding failed-substrate; null vs zero metric distinction; rating aggregation via ratingRefs fetch.
+- **Per-primary-claim keying.** Reputation computed against bundle.presentedBy.primaryClaim; no inheritance across tiers.
+- **Rate phase.** Run-after-settle ordering; one-record-per-direction; signature with rating domain separator; bundle-inclusion.
+- **ERC-8004 publication (optional).** Token-owner-signed entry; bundle-anchor pointer correctness; rate-limit enforcement.
 
 ### 14.6 Universal signature scheme (SIG-1..SIG-4)
 
 A cross-cutting test category that every conforming implementation runs once:
 
+- Sign every artifact kind in §7.7 with a known key; verify with the same key against the domain-separated payload; reject if the verifier reconstructs without the separator.
+- Cross-artifact replay test: take a valid signature on artifact kind A, attempt to verify it as a signature on artifact kind B with the same hash bytes; verification MUST fail.
+- Unknown-artifact x-* prefix test: implementations encountering an unknown domain separator MUST reject; experimental x- separators MUST be accepted only with out-of-band agreement.
+
 ### 14.7 Substrate-capability tests
 
 For substrates other than Demos that claim conformance, additional capability tests apply:
+
+- **SR-1.** Sub-identity binding test: a root key binds N sub-identities, presents under a single SR-1 signature, verifier resolves each to its claim scheme.
+- **SR-2.** Anchor-write → retrieve → content-hash check round-trip; size-cap enforcement.
+- **SR-3.** Fetch-specification → consensus-signed commitment → anchor; body-hash verification by independent consumer. (v1 conformance bar is trust-property; v2 will add wire-protocol tests.)
+- **SR-4.** Channel-establish → member-only-message-delivery → non-member-cannot-read; CH-1..CH-5 each as a test. (v1 trust-property; v2 wire-protocol.)
+- **SR-5.** Cross-chain lock → release with bounded-time atomicity; refund path on counterparty timeout.
 
 ### 14.8 Out of scope for v1 conformance
 
 The following are not part of v1 conformance and SHOULD NOT be tested as such:
 
+- Cross-substrate interoperability for SR-3- or SR-4-dependent phases (deferred to v2).
+- Multi-party transactions beyond bilateral plus sealed-envelope (deferred).
+- Streaming / continuous-flow rails (deferred).
+- Cross-DACS-version pipelines (deferred).
+- Dispute resolution flows (DACS-X, anticipated).
+
 ## References
 
 Cross-stage references for DACS-1 through DACS-5. Per-stage chapters may cite additional substrate-specific or standard-specific material inline.
 **Normative — RFCs**
+
+- RFC 2119 — *Key words for use in RFCs to Indicate Requirement Levels*. Bradner. 1997.
+- RFC 7231 §6.5.2 — *Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content — 402 Payment Required*. Fielding & Reschke. 2014.
+- RFC 8174 — *Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words*. Leiba. 2017.
+- RFC 8555 — *Automatic Certificate Management Environment (ACME)*. Barnes et al. 2019.
+- RFC 8785 — *JSON Canonicalization Scheme (JCS)*. Rundgren et al. 2020.
+
 **Companion DACS specifications**
+
+- **DACS-1 — Agent Identity, Discovery and Listing**, chapter 6 of this document.
+- **DACS-2 — Credential Attestation**, chapter 7 of this document.
+- **DACS-3 — Negotiation**, chapter 8 of this document.
+- **DACS-4 — Settlement: Payment Rails and Delivery Phases**, chapter 9 of this document.
+- **DACS-5 — Verification, Session Records and Reputation**, chapter 10 of this document.
+
 **Ethereum ecosystem**
+
+- **ERC-8004** — *Trustless Agents*. Davide Crapis et al. Ethereum Foundation, Ethereum Improvement Proposals draft.
+- **ERC-8183** — *Standard for Job Escrow*. Proposed standard for EVM-native escrow primitive supporting job-style transactions.
+
 **W3C and related**
+
+- **W3C Decentralized Identifiers (DIDs) v1.0**. W3C Recommendation, 2022.
+- **W3C Verifiable Credentials Data Model 2.0**. W3C Recommendation Track.
+- **W3C Verifiable Credentials Status List 2021**.
+
 **Payment standards**
+
+- **AP2 — Agent Payments Protocol**. Google. Donated to FIDO Alliance, April 2026.
+- **x402 — HTTP 402 revival**. Coinbase, Cloudflare, Anthropic.
+
 **Agent communication**
+
+- **A2A** — *Agent2Agent Protocol*. .well-known/agent.json discovery surface.
+
 **Verification and attestation**
+
+- **TLSNotary**. Privacy & Scaling Explorations (PSE) rebuild, 2024.
+- **Reclaim Protocol**. zkTLS proof system for HTTP responses.
+- **DECO** — *Liabilities-and-Verifiability Decentralized Oracle Layer*. Earlier zkTLS-style construction.
+
 **Demos / Kynesys**
+
+- **Demos Whitepaper**. Kynesys Labs.
+- **Kynesys SDK**, package @kynesyslabs/demosdk. Modules: identities, storage, bridge (Native Bridges + Rubic), demoswork (L2PS workflow), web2 (DAHR).
+
 **Identifiers and utility**
+
+- **ULID** — *Universally Unique Lexicographically Sortable Identifier*.
+
 **Procurement frameworks**
+
+- **FAR Part 14** — *Sealed Bidding*. US Federal Acquisition Regulation.
+- **FAR Part 15** — *Contracting by Negotiation*. US Federal Acquisition Regulation.
+- **EU Directive 2014/24/EU** — *Public Procurement Directive*.

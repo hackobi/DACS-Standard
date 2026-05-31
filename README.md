@@ -56,7 +56,7 @@ these five primitives can host a conformant implementation:
 The audit format is the standard; the substrate is a deployment choice. DACS was
 written and proven end-to-end against the [Demos Network](https://demos.sh), which
 ships all five primitives today — see §4–6 of the specification for the
-substrate-to-primitive mapping and production status.
+substrate-to-primitive mapping and production status. The unified SDK is [`@kynesyslabs/demosdk`](https://www.npmjs.com/package/@kynesyslabs/demosdk); substrate docs are at [demos.sh](https://demos.sh).
 
 ## Composes with, does not replace
 
