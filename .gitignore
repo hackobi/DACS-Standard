@@ -1,0 +1,11 @@
+# Authoring sources kept locally, not published (the draft .docx carries internal
+# Word review comments; the published spec is the comment-stripped copy in spec/).
+_source/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
