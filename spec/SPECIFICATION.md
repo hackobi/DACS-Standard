@@ -3191,6 +3191,7 @@ The threat model assumes adversaries with the following capabilities; per-threat
 | Channel operator (SR-4) | Operates the private negotiation channel; can drop messages, fork views, observe all member messages. | Forging member signatures inside the channel; observing messages encrypted to a member subset (with realisation-appropriate encryption). |
 | Recipe-registry attacker | Compromises the recipe registry signing key, attempts to push poisoned recipes. | Backdating recipe-version pinning; affecting already-pinned sessions. |
 | Sybil attacker | Generates unlimited low-tier (key:…) identities and farms self-deal reputation. | Generating authority-issued claims (lei, finra-crd, etc.) without owning the underlying registrations. |
+| Malicious orchestrator | Drives the session pipeline, assigns `errorClass`, constructs the SessionRecord, and MAY be a distinct REQUIRED signer (§10.4.1); can misclassify failures, drop or reorder phase results, or selectively anchor. | Forging buyer/seller signatures, or producing a both-sided-signed bundle without honest-party consent (§10.11 two-sided independent bundles; party-disagreement → aborted-by-other). |
 
 ### 12.3 Trust boundaries
 
