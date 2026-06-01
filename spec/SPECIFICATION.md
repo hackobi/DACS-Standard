@@ -1893,8 +1893,23 @@ type NegotiateSealedEnvelopeOutput = PhaseHandlerResult & {
 ```
 
 **Procedure.** The orchestrator MUST: (1) establish SR-4 channels between the seller and each bidder; (2) **bidder commit phase** (before commitDeadline) — each bidder constructs a bid, computes bidHash = sha256(canonical_JCS(bid) || bidder_salt), and sends a sealed-envelope-commit message {bidHash, bidderClaim, commitTimestamp}; the commit message’s bidHash MUST also be anchored via SR-2; (3) at commitDeadline, no further commits are accepted; the orchestrator records the set of received commits; (4) **bidder reveal phase** (within revealWindow) — each bidder sends a sealed-envelope-reveal message {bid, salt} matching their prior bidHash; orchestrator verifies sha256(canonical_JCS(bid) || salt) == bidHash; mismatches cause exclusion; (5) **selection** — the orchestrator applies parameters.selectionRule; ties resolved by earliest commit timestamp; (6) construct the AgreementDocument from the winning bid with derivedFromPattern: "sealed-envelope" (losing bidders listed as bidder-non-winning parties; their signatures are not required); (7) anchor the agreement and reveal records via SR-2.
+**Sealed bid body schema**
+The body of a sealed-envelope-reveal message (the revealed `bid`, and therefore the value committed to in step 2) MUST conform to:
+```
+type SealedBid = {
+
+  price: PriceTerm                     // the bid amount and currency
+
+  deliverable?: DeliverableRef         // what the bidder undertakes to deliver
+
+  terms?: Record<string, unknown>      // additional pattern- or listing-specific terms
+
+}
+```
+The `bid` over which `bidHash` is computed in step (2) is exactly this `SealedBid` object in its RFC 8785 JCS canonical form. All bids in a single session MUST be denominated in the listing-declared currency; a revealed bid whose `price.currency` does not match MUST be excluded from selection.
+
 **Selection rules and the rule-ref binding requirement**
-parameters.selectionRule is one of: "lowest-price"; "highest-price"; "first-acceptable" (per listing-defined acceptance criteria); "rule-ref:<contentHash>:<uri>". For rule-ref, the rule MUST be anchored as a Storage Program (or fetched from an HTTPS URI and content-hash-bound). The URI is purely informational; the <contentHash> in the selection rule string is the authoritative binding. Orchestrators MUST fetch the rule at <uri> (or the substrate anchor), compute sha256 of the canonical form, and verify it matches <contentHash>. Mismatch MUST exclude the rule and fail the selection step with errorClass: permanent. This prevents a seller from changing the selection algorithm after bids have been submitted by changing the content served at <uri>.
+parameters.selectionRule is one of: "lowest-price"; "highest-price"; "first-acceptable" (per listing-defined acceptance criteria); "rule-ref:<contentHash>:<uri>". For "lowest-price" and "highest-price", the orchestrator MUST order revealed bids by `bid.price.amount` (compared as a decimal, full precision) ascending or descending respectively. For "first-acceptable", the orchestrator MUST evaluate revealed bids in ascending commit-timestamp order against the listing-declared acceptance predicate and select the first that satisfies it. For rule-ref, the rule MUST be anchored as a Storage Program (or fetched from an HTTPS URI and content-hash-bound). The URI is purely informational; the <contentHash> in the selection rule string is the authoritative binding. Orchestrators MUST fetch the rule at <uri> (or the substrate anchor), compute sha256 of the canonical form, and verify it matches <contentHash>. Mismatch MUST exclude the rule and fail the selection step with errorClass: permanent. This prevents a seller from changing the selection algorithm after bids have been submitted by changing the content served at <uri>.
 **Conformance.** (SE-1) commitDeadline MUST be at least 60 seconds in the future at session start. (SE-2) Every bidder commit MUST be anchored before commitDeadline; commits whose anchor timestamp is after commitDeadline MUST be excluded. (SE-3) Reveals MUST occur within revealWindow; late reveals MUST be excluded. (SE-4) Bidders failing reveal MUST be excluded from selection and MAY be marked with a failure-to-reveal reputation event (DACS-5). (SE-5) The selection rule MUST be deterministic; ties MUST resolve consistently. (SE-6) rule-ref selection rules MUST be content-hash-bound and the rule content MUST itself be deterministic given the bid set. **Substrate:** SR-2 + SR-4.
 
 ### 8.5 Agreement document
