@@ -1574,7 +1574,7 @@ Re-running vet-credentials with the same inputs MUST produce the same composite-
 | --- | --- |
 | Method implementer | CM-1 through CM-5 |
 | Recipe author | RA-1 through RA-5 |
-| Verifier (orchestrator) | VP-R1 through VP-R3; VP-C1 through VP-C3; VPC-1 through VPC-4 |
+| Verifier (orchestrator) | VP-R1 through VP-R4; VP-C1 through VP-C3; VPC-1 through VPC-4 |
 | VerifyResult consumer | §7.5.2 attestation resolution; recipe-version pinning |
 | Composite record reader | §7.7.1 aggregation; signature validation |
 
