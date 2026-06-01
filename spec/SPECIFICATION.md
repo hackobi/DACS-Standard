@@ -2214,7 +2214,7 @@ type PricingSpec =
 
 type PriceTerm = {
 
-  amount: string                       // canonical decimal string (rule CD-1, §8.5.1): minimal-digit, no leading/trailing zeros, no exponent
+  amount: string                       // canonical decimal string (rule CD-1, §8.5.1): minimal-digit, no leading/trailing zeros, no exponent; MUST be positive (see normative rule below)
 
   currency: string                     // ISO 4217 fiat OR asset id (e.g. "usd-stablecoin", "USDC", "SOL")
 
@@ -2270,6 +2270,8 @@ type ChainTxRef =
 ```
 
 **DeliverableRef canonical hash.** `DeliverableRef.hash` is `sha256(canonical_form)`, hex-encoded, where `canonical_form` is the RFC 8785 JCS serialisation of the `DeliverableSpec` — the same canonicalisation rule used for every other hashed artifact in DACS (listing §6.3.4, agreement §8.5.1). Because `DeliverableSpec` is a discriminated union with optional fields, the JCS rule (lexicographic key ordering, omitted-vs-present fields canonicalised consistently) is what makes the hash reproducible across implementations. To keep the §8.5.2 conformance check byte-for-byte deterministic, both parties MUST compute this hash over the listing's `offering.deliverable` value as anchored, not over a separately re-derived copy.
+
+**PriceTerm.amount positivity (normative).** `PriceTerm.amount` MUST be a positive decimal: it MUST parse to a finite value strictly greater than zero, and MUST NOT be NaN, infinite, or negative. Because `PriceTerm` is the canonical economic primitive consumed by automated winner-selection over adversarial bids (§8.4.3), band validation (§8.5.2), and on-chain amount construction (§9.5.2), conformant implementations MUST reject any bid, listing price, or agreed price whose `amount` is non-positive — before applying `selectionRule` and before commit-agreement. A revealed bid that violates this constraint MUST be excluded from the candidate set rather than selected as a `lowest-price` winner.
 
 ### 9.4 Payment rail registry
 
