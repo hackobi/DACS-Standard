@@ -37,8 +37,9 @@ artifact, verify every signature, and confirm the audit trail end-to-end.
 | **DACS-4** | Settle | Payment-rail registry, payment phases, delivery phases |
 | **DACS-5** | Verify | Session record, attestation bundle, reputation derivation |
 
-The stages are sequential within a transaction; from v0.1 onward the standards
-version together as a single document.
+The stages are sequential within a transaction. v0.1 is a common baseline that
+publishes all five per-stage standards together; from there each versions
+independently.
 
 ## Substrate requirements (SR-1 … SR-5)
 

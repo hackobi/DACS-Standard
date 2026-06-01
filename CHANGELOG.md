@@ -17,7 +17,7 @@ The format used per release:
 
 First publicly released version.
 
-Earlier drafts circulated internally under per-stage version numbers (DACS-1..5 v0.1) attached to a paper version (v0.7), with a brief v0.8 cut that consolidated review-pass revisions. Those numbers are retired. From v0.1 onward, the entire DACS standard versions together as a single document.
+Earlier drafts circulated internally under per-stage version numbers (DACS-1..5 v0.1) attached to a paper version (v0.7), with a brief v0.8 cut that consolidated review-pass revisions. Those numbers are retired and reset to a common baseline. v0.1 publishes all five per-stage standards together; from this baseline onward each per-stage standard versions independently.
 
 External implementers who saw earlier drafts (most notably PATH-OS Labs' `pathos-dacs-ref`, which was built against the v0.7 paper / v0.1 per-stage state) should treat this entry as the migration list for what changed between their drafting target and v0.1.
 
@@ -71,7 +71,7 @@ External implementers who saw earlier drafts (most notably PATH-OS Labs' `pathos
 
 - **§11.3 closing** rewritten. The previous version led with "the closed-marketplace alternative is consolidating fast" and positioned DACS as Demos's contribution to keeping the lifecycle open. The v0.1 closing is descriptive rather than positional, acknowledges the PATH-OS reference implementation explicitly, and lists honest remaining work without sales register.
 
-- **Versioning scheme.** Earlier drafts used dual versioning (paper v0.X + per-stage v0.Y) with the expectation that per-stage standards could drift. v0.1 collapses to a single document-level version. All five per-stage standards inherit the document version; they do not version independently from this point forward.
+- **Versioning scheme.** Earlier drafts used dual versioning (paper v0.X + per-stage v0.Y) with diverging per-stage numbers. v0.1 retires those and resets all five per-stage standards to a common baseline, published together. From this baseline onward each per-stage standard versions independently; a pipeline composes a coherent set of per-stage versions.
 
 ### Removed
 
