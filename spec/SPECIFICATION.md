@@ -1229,7 +1229,7 @@ recipe.parser = {
 }
 // Body parses as JSON and successJsonPath selects a node  -> decision = pass
 // Body parses as JSON but successJsonPath selects nothing  -> decision = fail
-// Body is not valid JSON / GLIEF returns a 5xx HTML error  -> decision = error
+// Body is not valid JSON / GLEIF returns a 5xx HTML error  -> decision = error
 // (extracted legalName/status/jurisdiction recorded in the VerifyResult)
 ```
 
