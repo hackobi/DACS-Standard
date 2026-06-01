@@ -2264,6 +2264,8 @@ type ChainTxRef =
 
   | { kind: "htlc-reveal"; chainId: number; contractAddress: string; revealTxHash: string }
 
+  | { kind: "htlc-refund"; chainId: number; contractAddress: string; refundTxHash: string }
+
   | { kind: "liquidity-tank"; bridgeId: string; sourceChainId: number; destChainId: number; lockTxHash: string; releaseTxHash?: string }
 ```
 
