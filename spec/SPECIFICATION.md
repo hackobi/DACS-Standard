@@ -2010,7 +2010,7 @@ type AgreementSignature = {
 
 #### 8.5.1 Canonical serialisation and signature
 
-The agreement’s canonical form is the RFC 8785 JCS serialisation with the signatures field omitted. The agreement hash is sha256(canonical_form), hex-encoded. Each AgreementSignature.value is computed over the domain-separated payload per chapter 7§7.7:
+The agreement’s canonical form is the RFC 8785 JCS serialisation with the signatures field omitted. **Rule CD-1 (canonical decimal).** Because RFC 8785 JCS canonicalises JSON numbers but preserves string bytes verbatim, every `PriceTerm.amount` string MUST be in minimal-digit canonical decimal form: no leading zeros (except a single `0` before the decimal point), no trailing zeros after the decimal point, `.` as the only separator, no `+` sign, and no exponent. Producers MUST canonicalise `amount` per CD-1 before computing any agreement hash, `SettlementEvidence` hash, or other JCS hash; verifiers MUST canonicalise `amount` per CD-1 before the §8.5.2 price-band and price-equality comparisons. Two parties formatting the same economic value differently (e.g. `"1.50"` vs `"1.5"`) MUST therefore reproduce identical canonical bytes, hashes, and signatures. The agreement hash is sha256(canonical_form), hex-encoded. Each AgreementSignature.value is computed over the domain-separated payload per chapter 7§7.7:
 signed_bytes := "dacs-agreement:v1:" || agreement_hash
 Verifiers MUST recompute the canonical form, agreement hash, and domain-separated payload, and for each required party, resolve the primary claim’s key (per DACS-2 verification) and verify the signature. Required signers: negotiate-fixed-price — buyer + seller (seller signature may be an auto-accept instance signature per §8.4.1); negotiate-rfq — buyer + seller; negotiate-sealed-envelope — seller + winning bidder (non-winning bidders’ signatures are not required).
 
@@ -2214,7 +2214,7 @@ type PricingSpec =
 
 type PriceTerm = {
 
-  amount: string                       // decimal as string, full precision
+  amount: string                       // canonical decimal string (rule CD-1, §8.5.1): minimal-digit, no leading/trailing zeros, no exponent
 
   currency: string                     // ISO 4217 fiat OR asset id (e.g. "usd-stablecoin", "USDC", "SOL")
 
@@ -3411,6 +3411,7 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **Rail authoring (RD-1..RD-5).** Steward-key signature with domain separator; anchoring; version monotonicity; railType/asset/network consistency.
 - **Payment common contract (PC-1..PC-4).** For each of the six pay-* phases: input-shape validation; anchored SettlementEvidence; PhaseHandlerResult with correct attestationRef; outcome classification across all errorClass values.
 - **pay-evm-erc20 / pay-solana-spl.** Decimal-conversion correctness (no float arithmetic); chain-finality wait; SettlementEvidence with correct txRef kind.
+- **Canonical decimal (CD-1).** PriceTerm.amount canonicalisation: economically-equal forms (`"1.50"`, `"01.5"`, `"1.500"`) all normalise to `"1.5"` and produce identical agreement/SettlementEvidence JCS hashes and signatures; non-canonical input on read either canonicalises or is rejected per implementation policy; §8.5.2 price-band and price-equality checks compare canonicalised decimals, not raw strings.
 - **pay-cross-chain-htlc (HTLC-1..HTLC-7).** buyerSalt entropy enforcement; HKDF preimage-derivation correctness (IKM=buyerSalt, salt=jobId, info=agreementHash); salt-non-reuse across sessions; pre-finality-reveal rejection; timelock-refund path; per-chain native hashlock functions (keccak256 on EVM, sha256 on Solana, blake2b on Cosmos) producing distinct hashlocks from the same preimage; timelock asymmetry (timelock_source > timelock_dest + finality) enforced, with mis-configured routes rejected.
 - **pay-cross-chain-liquidity-tank.** BridgeOperation lifecycle ("empty" → "pending" → "completed" | "failed"); bridge_id recording; route-in-supported-scope validation.
 - **pay-ap2 / pay-x402.** Mandate-revocation handling; receipt-signature verification.
