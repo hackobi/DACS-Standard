@@ -30,7 +30,8 @@ open-ended questions.
 
 ## Versioning
 
-- Draft phase uses `0.MAJOR.MINOR` (v0.1, v0.2, …); `MAJOR.MINOR` from v1.0.
+- Draft phase uses `v0.MINOR` (v0.1, v0.2, …); `vMAJOR.MINOR` from v1.0 onward.
+  Each per-stage standard versions independently from the shared v0.1 baseline.
 - Breaking changes bump the major version; additive non-breaking changes bump the
   minor version; editorial-only changes do not bump the version.
 - Every normative change is recorded in [CHANGELOG.md](./CHANGELOG.md) with the

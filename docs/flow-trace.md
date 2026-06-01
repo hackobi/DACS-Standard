@@ -182,7 +182,7 @@ async function vet(bundle: Bundle, listing: Listing, jobId: string) {
 }
 
 async function vetViaDAHR(demos: Demos, claim: Claim, recipe: Recipe, jobId: string) {
-  // ↓ This is the call he asked about: "how does the on-chain hash trigger an
+  // ↓ The key question this call answers: "how does the on-chain hash trigger an
   //   operation, and how, without private info?"
   //
   // demos.web2.createDahr() instantiates a DAHR session. dahr.startProxy(...)
@@ -228,7 +228,7 @@ async function vetViaDAHR(demos: Demos, claim: Claim, recipe: Recipe, jobId: str
       signer: `substrate-validator-set:demos-mainnet:${response.epochAtFetch ?? "unknown"}`,
     },
     validFrom: response.fetchedAt,
-    validUntil: response.fetchedAt + (recipe.defaultMaxAgeMs ?? 86_400_000),
+    validUntil: response.fetchedAt + (recipe.defaultMaxAgeSec ?? 86_400) * 1000,
   };
   const vrHash = sha256Hex(jcs(omitField(vr, "signature")));
   vr.signature = await demos.sign(signedBytes("verifyresult", vrHash));
@@ -731,7 +731,7 @@ This is on the DACS-4 build backlog ("WorkStep wrapper for `pay-cross-chain-liqu
 
 ---
 
-## 10. Summary — what this trace tells him
+## 10. Summary — what this trace shows
 
 **Protocol composes with the SDK cleanly where the SDK is complete** (SR-1, SR-2, SR-3). The Identify and Vet stages map almost one-to-one to existing SDK calls (`demos.wallet.signIn`, `demos.cci.resolve`, `demos.storage.read/write`, `demos.web2.createDahr` + `startProxy`).
 

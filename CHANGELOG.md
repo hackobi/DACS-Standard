@@ -116,7 +116,7 @@ If you implemented against the v0.7 / v0.1 state and are migrating to v0.1, the 
 
 ## Format conventions
 
-- Versions follow `0.MAJOR.MINOR` style during draft phase (v0.1, v0.2, …) and `MAJOR.MINOR` once the standard reaches v1.0.
+- Versions follow `v0.MINOR` style during draft phase (v0.1, v0.2, …) and `vMAJOR.MINOR` once a standard reaches v1.0. Each per-stage standard versions independently from the shared v0.1 baseline.
 - Breaking changes get a major-version bump (v0.x → v1.0, v1.x → v2.0).
 - Additive non-breaking changes get a minor-version bump (v0.1 → v0.2).
 - Editorial-only changes (typo fixes, formatting, examples that don't change semantics) do not bump the version.
