@@ -2016,7 +2016,7 @@ Verifiers MUST recompute the canonical form, agreement hash, and domain-separate
 
 #### 8.5.2 Listing conformance validation
 
-A verifier MUST validate the agreement against its referenced listing: terms.price MUST lie within the listing’s pricing band (if pricing is negotiable, within the declared negotiable.minPct / negotiable.maxPct band; if fixed, equal to the listed price); terms.rail MUST appear in listing.acceptedRails; terms.deliverable MUST conform to the listing’s offering.deliverable (deliverable hash, schema reference, etc.); terms.deadline MUST be ≤ generatedAt + listing.terms.deadlineSecAfterCommit; derivedFromPattern MUST match the listing’s pipeline-declared negotiation pattern. Agreements failing any check MUST be rejected by commit-agreement.
+A verifier MUST validate the agreement against its referenced listing: terms.price MUST lie within the listing’s pricing band (if pricing is negotiable, within the declared negotiable.minPct / negotiable.maxPct band; if fixed, equal to the listed price); terms.rail MUST appear in listing.acceptedRails; terms.deliverable MUST conform to the listing’s offering.deliverable — specifically: terms.deliverable.deliverableType MUST equal the listing offering.deliverable kind, terms.deliverable.hash MUST equal the canonical DeliverableRef.hash of the listing’s offering.deliverable (per §9.3), and terms.deliverable.schemaUrl MUST equal the listing offering.deliverable.schemaUrl (both absent, or both present and equal); terms.deadline MUST be ≤ generatedAt + listing.terms.deadlineSecAfterCommit; derivedFromPattern MUST match the listing’s pipeline-declared negotiation pattern. Agreements failing any check MUST be rejected by commit-agreement.
 
 ### 8.6 Commitment phase (commit-agreement)
 
@@ -2236,7 +2236,7 @@ type DeliverableRef = {
 
   deliverableType: DeliverableSpec["kind"]
 
-  hash: string                         // sha256 of the deliverable spec
+  hash: string                         // sha256 of the RFC 8785 JCS canonical form of the DeliverableSpec (see below)
 
   schemaUrl?: string
 
@@ -2268,6 +2268,8 @@ type ChainTxRef =
 
   | { kind: "liquidity-tank"; bridgeId: string; sourceChainId: number; destChainId: number; lockTxHash: string; releaseTxHash?: string }
 ```
+
+**DeliverableRef canonical hash.** `DeliverableRef.hash` is `sha256(canonical_form)`, hex-encoded, where `canonical_form` is the RFC 8785 JCS serialisation of the `DeliverableSpec` — the same canonicalisation rule used for every other hashed artifact in DACS (listing §6.3.4, agreement §8.5.1). Because `DeliverableSpec` is a discriminated union with optional fields, the JCS rule (lexicographic key ordering, omitted-vs-present fields canonicalised consistently) is what makes the hash reproducible across implementations. To keep the §8.5.2 conformance check byte-for-byte deterministic, both parties MUST compute this hash over the listing's `offering.deliverable` value as anchored, not over a separately re-derived copy.
 
 ### 9.4 Payment rail registry
 
