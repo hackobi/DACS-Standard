@@ -183,7 +183,7 @@ If those three checks come out negative, this document was wrong. If they come o
 
 ## Appendix B — Pointers
 
-- **[DACS spec (v0.1)](../spec/SPECIFICATION.md).** The full normative standard (also a [Word document](../spec/DACS-Specification-v0.1.docx)).
+- **[DACS spec (v0.1)](../spec/SPECIFICATION.md).** The full normative standard.
 - **[CHANGELOG](../CHANGELOG.md).** Document-level version history; what's in v0.1 and what changed between drafts.
 - **[DACS flow trace](./flow-trace.md).** End-to-end happy path, TypeScript pseudocode + sequence diagram.
 - **agent-commerce-demo.** KyneSys Labs' reference implementation; runs end-to-end DACS-1..DACS-5 against Demos testnet.
