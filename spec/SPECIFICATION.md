@@ -443,7 +443,7 @@ For a BundleClaim with verifiedBy present: the reader fetches the VerifyResultRe
 A verifiedBy reference is stale when now > BundleClaim.expiresAt, or, when expiresAt is absent, when now − issuedAt > recipe.defaultMaxAgeSec. A stale verification MUST be refreshed during the Vet stage (DACS-2) for any claim that is required by the listing’s BundleRequirement.
 **Conformance — bundles**
 A conforming bundle producer MUST: (BP-1) produce JCS-canonical serialisation for hashing and signing; (BP-2) include at least one claim; (BP-3) provide presentedBy that resolves to a claim; (BP-4) provide a presentation signature that verifies against the bundle hash.
-A conforming bundle reader MUST: (BR-1) recompute the bundle hash from canonical form before signature check; (BR-2) reject a bundle whose presentation signature does not verify; (BR-3) reject a bundle in which a required (per listing) claim has a missing or invalid verifiedBy when verificationRequired = true; (BR-4) treat claims with unknown schemes as unverified.
+A conforming bundle reader MUST: (BR-1) recompute the bundle hash from canonical form before signature check; (BR-2) reject a bundle whose presentation signature does not verify; (BR-3) reject a bundle in which a required (per listing) claim has a missing or invalid verifiedBy when verificationRequired = true; (BR-4) treat claims with unknown schemes as unverified; (BR-5) when the listing sets primaryClaimSelector, reject a bundle whose presentedBy claim is not itself verified (missing or failing verifiedBy), even when its scheme matches the selector — see the §6.3.3 match() step that enforces this, preventing tier-laundering where an unverified primary claim rides on separately-verified required claims.
 **Selective disclosure (scope note).** v0.1 provides no per-claim selective-disclosure mechanism at the bundle layer: there is no per-claim blinding, no commitment-with-open-on-demand, and no proof-of-possession-without-disclosure for a claim a listing did not require. A verifier that receives a bundle sees every claim in `claims[]`, and the `presentedBy` primary claim is always disclosed and is the cross-session correlator used for reputation and audit (§6.4, §6.3.4). The DACS-2 zkTLS / TLSNotary methods (§7.3.3 tlsnotary, §7.3.4 zktls) protect the secret *inside* a claim's verification; they do NOT conceal *which* claims a party holds from a counterparty. The only minimisation available in v0.1 is presenter-side: a presenter MAY publish a bundle containing only the claims a given listing requires, accepting that the primary claim remains linkable across presentations. Implementers MUST NOT treat DACS-1 + a privacy-preserving DACS-2 method as an end-to-end selective-disclosure guarantee. Blinded / minimised-claim presentation is a named follow-on item (§11.2.7).
 
 #### 6.3.3 Bundle requirement schema
@@ -899,7 +899,7 @@ Read endpoints MUST NOT require authentication. Write/registration semantics are
 | Listing publisher | LP-1 anchor; LP-2 sign; LP-3 monotonic versions; LP-4 publish revocation markers |
 | Listing reader | LR-1 pin tuple; LR-2 validate per validation order; LR-3 refuse revoked |
 | Bundle producer | BP-1 JCS canonical; BP-2 non-empty claims; BP-3 valid presentedBy; BP-4 valid presentation signature |
-| Bundle reader | BR-1 recompute hash; BR-2 reject invalid signature; BR-3 reject missing required verifiedBy; BR-4 treat unknown schemes as unverified |
+| Bundle reader | BR-1 recompute hash; BR-2 reject invalid signature; BR-3 reject missing required verifiedBy; BR-4 treat unknown schemes as unverified; BR-5 reject unverified presentedBy when primaryClaimSelector set |
 | Well-known publisher | Publish dacs block; keep indexHash current |
 | Catalog operator | Open read endpoints; honour caching constraint; decline write endpoints by spec discretion |
 | Catalog client | Dereference anchors before binding |
@@ -1248,10 +1248,10 @@ type ParserSpec =
 
 **ParserSpec semantics (normative).** Given the attested response body, a verifier applies the recipe’s ParserSpec to produce a decision and an optional extracted-data map:
 
-- (PS-1) **successJsonPath / successSelector / successXPath / matcher** is the *match predicate*. For `json`, it is a JSONPath that MUST select at least one node for a match; for `html`, a CSS selector that MUST select at least one element; for `xml`, an XPath that MUST select at least one node; for `raw`, `matcher` is a regular expression (RE2 syntax, no backreferences) that MUST find at least one match in the body.
-- (PS-2) **Decision mapping.** If the body parses in the declared format AND the match predicate matches → the method’s positive outcome (`pass` for a positive-match scheme such as `lei`; `fail` for a negative-match scheme such as `ofac-clear`, where a match means "listed"; the recipe’s `negativeMatch: true` flag selects this inversion). If the body parses but the predicate does not match → the negative outcome (`fail`, or `pass` for a negative-match scheme). If the body does NOT parse in the declared format (malformed JSON/HTML/XML, parser exception) → `error` (verifier-side failure to obtain a decision), never `fail`. A response the authority returns to signal "no conclusive answer" (e.g. an explicit pending/partial-record marker the recipe lists in `indeterminateOn`) → `indeterminate`. The `indeterminateOn` predicates, when present, are evaluated against the parsed body BEFORE the match predicate; if any of them matches, the decision is `indeterminate` and the match predicate is not applied. Each predicate uses the expression kind appropriate to the declared `format` (`jsonPath` for `json`, `selector` for `html`, `xPath` for `xml`, `matcher` for `raw`).
-- (PS-3) **dataMap** maps output field names to JSONPath/selector/XPath expressions evaluated against the same body; each resolved value is recorded in the VerifyResult’s extracted data for audit. A `dataMap` expression that resolves to nothing is recorded as null and MUST NOT by itself change the decision.
-- (PS-4) Parser evaluation MUST be deterministic and MUST NOT execute scripts, fetch sub-resources, or follow redirects embedded in the body.
+- (PSP-1) **successJsonPath / successSelector / successXPath / matcher** is the *match predicate*. For `json`, it is a JSONPath that MUST select at least one node for a match; for `html`, a CSS selector that MUST select at least one element; for `xml`, an XPath that MUST select at least one node; for `raw`, `matcher` is a regular expression (RE2 syntax, no backreferences) that MUST find at least one match in the body.
+- (PSP-2) **Decision mapping.** If the body parses in the declared format AND the match predicate matches → the method’s positive outcome (`pass` for a positive-match scheme such as `lei`; `fail` for a negative-match scheme such as `ofac-clear`, where a match means "listed"; the recipe’s `negativeMatch: true` flag selects this inversion). If the body parses but the predicate does not match → the negative outcome (`fail`, or `pass` for a negative-match scheme). If the body does NOT parse in the declared format (malformed JSON/HTML/XML, parser exception) → `error` (verifier-side failure to obtain a decision), never `fail`. A response the authority returns to signal "no conclusive answer" (e.g. an explicit pending/partial-record marker the recipe lists in `indeterminateOn`) → `indeterminate`. The `indeterminateOn` predicates, when present, are evaluated against the parsed body BEFORE the match predicate; if any of them matches, the decision is `indeterminate` and the match predicate is not applied. Each predicate uses the expression kind appropriate to the declared `format` (`jsonPath` for `json`, `selector` for `html`, `xPath` for `xml`, `matcher` for `raw`).
+- (PSP-3) **dataMap** maps output field names to JSONPath/selector/XPath expressions evaluated against the same body; each resolved value is recorded in the VerifyResult’s extracted data for audit. A `dataMap` expression that resolves to nothing is recorded as null and MUST NOT by itself change the decision.
+- (PSP-4) Parser evaluation MUST be deterministic and MUST NOT execute scripts, fetch sub-resources, or follow redirects embedded in the body.
 
 *Worked example (`lei`, positive-match, GLEIF JSON-API):*
 
@@ -1872,7 +1872,7 @@ type NegotiateSealedEnvelopeInput = {
 
     revealWindow: number               // seconds after commitDeadline; MUST be >= 60
 
-    selectionRule: "lowest-price" | "highest-price" | "first-acceptable" | "rule-ref:<uri>"
+    selectionRule: "lowest-price" | "highest-price" | "first-acceptable" | "rule-ref:<contentHash>:<uri>"
 
     channelSubnet?: string
 
@@ -1922,7 +1922,7 @@ type SealedBid = {
 The `bid` over which `bidHash` is computed in step (2) is exactly this `SealedBid` object in its RFC 8785 JCS canonical form. All bids in a single session MUST be denominated in the listing-declared currency; a revealed bid whose `price.currency` does not match MUST be excluded from selection.
 
 **Selection rules and the rule-ref binding requirement**
-parameters.selectionRule is one of: "lowest-price"; "highest-price"; "first-acceptable" (per listing-defined acceptance criteria); "rule-ref:<contentHash>:<uri>". For "lowest-price" and "highest-price", the orchestrator MUST order revealed bids by `bid.price.amount` (compared as a decimal, full precision) ascending or descending respectively. For "first-acceptable", the orchestrator MUST evaluate revealed bids in ascending commit-timestamp order against the listing-declared acceptance predicate and select the first that satisfies it. For rule-ref, the rule MUST be anchored as a Storage Program (or fetched from an HTTPS URI and content-hash-bound). The URI is purely informational; the <contentHash> in the selection rule string is the authoritative binding. Orchestrators MUST fetch the rule at <uri> (or the substrate anchor), compute sha256 of the canonical form, and verify it matches <contentHash>. Mismatch MUST exclude the rule and fail the selection step with errorClass: permanent. This prevents a seller from changing the selection algorithm after bids have been submitted by changing the content served at <uri>.
+parameters.selectionRule is one of: "lowest-price"; "highest-price"; "first-acceptable" (per listing-defined acceptance criteria); "rule-ref:<contentHash>:<uri>". For "lowest-price" and "highest-price", the orchestrator MUST order revealed bids by `bid.price.amount` (compared as a decimal, full precision) ascending or descending respectively. For "first-acceptable", the orchestrator MUST evaluate revealed bids in ascending order of the SR-2 anchor timestamp of each bidder's commit (the same objective clock as SE-2/SE-5, not the self-reported commitTimestamp field) against the listing-declared acceptance predicate and select the first that satisfies it. For rule-ref, the rule MUST be anchored as a Storage Program (or fetched from an HTTPS URI and content-hash-bound). The URI is purely informational; the <contentHash> in the selection rule string is the authoritative binding. Orchestrators MUST fetch the rule at <uri> (or the substrate anchor), compute sha256 of the canonical form, and verify it matches <contentHash>. Mismatch MUST exclude the rule and fail the selection step with errorClass: permanent. This prevents a seller from changing the selection algorithm after bids have been submitted by changing the content served at <uri>.
 **Conformance.** (SE-1) commitDeadline MUST be at least 60 seconds in the future at session start. (SE-2) Every bidder commit MUST be anchored before commitDeadline; commits whose anchor timestamp is after commitDeadline MUST be excluded. (SE-3) Every revealed bid MUST be anchored via SR-2 before revealWindow expiry; reveals whose anchor timestamp is after revealWindow expiry MUST be excluded. This mirrors SE-2: the substrate anchor timestamp — not a channel message's self-reported sentAt or the orchestrator's wall clock — is the authoritative clock that decides whether a reveal occurred in-window. (SE-4) Bidders failing reveal MUST be excluded from selection and MAY be marked with a failure-to-reveal reputation event (DACS-5). (SE-5) The selection rule MUST be deterministic; ties MUST resolve consistently. The tie-break MUST use the objective SR-2 anchor timestamp of each bidder's commit (the same clock as SE-2), MUST NOT use the self-reported commitTimestamp field, and MUST resolve same-anchor-timestamp ties by ascending lexicographic order of bidHash. (SE-6) rule-ref selection rules MUST be content-hash-bound and the rule content MUST itself be deterministic given the bid set. (SE-7) **Bid-commitment salt.** The `salt` used in the bidHash commitment MUST be generated from a cryptographically-secure random source with at least 256 bits (32 bytes) of entropy, MUST NOT be reused across bids or sessions, and MUST be carried on the wire as a base64url string so the bytes hashed are unambiguous to both committer and verifier; the commitment input is the raw decoded salt bytes. This closes the pre-reveal brute-force leak created by anchoring bidHash publicly (§8.12) for low-entropy structured bids, and aligns the sealed-envelope salt with the HTLC-1 salt discipline. **Substrate:** SR-2 + SR-4.
 
 ### 8.5 Agreement document
@@ -2136,7 +2136,7 @@ A DACS-1 listing’s pipeline declares which negotiation pattern is used. Each P
 | Channel implementation | CH-1 through CH-5; message envelope; failure detection |
 | negotiate-fixed-price | §8.4.1 procedure; signature collection; SR-2 anchoring |
 | negotiate-rfq | §8.4.2 procedure; RFQ-1 through RFQ-4; channel turn timeouts |
-| negotiate-sealed-envelope | §8.4.3 procedure; SE-1 through SE-6; deterministic selection; rule-ref content-hash binding |
+| negotiate-sealed-envelope | §8.4.3 procedure; SE-1 through SE-7; deterministic selection; rule-ref content-hash binding |
 | commit-agreement | CA-1 through CA-4; signature and conformance validation |
 | Listing publisher | PS-1 through PS-3 |
 | Substrate without SR-4 | MUST support negotiate-fixed-price; MUST refuse negotiate-rfq and negotiate-sealed-envelope with a clear substrate-capability-missing error |
@@ -2678,7 +2678,7 @@ A listing’s pipeline declares the order of payment and delivery phases. Common
 | Role | Requirements |
 | --- | --- |
 | Rail author | RD-1 through RD-5 |
-| Payment phase handler | PC-1 through PC-4; phase-specific procedure |
+| Payment phase handler | PC-1 through PC-5; phase-specific procedure |
 | Delivery phase handler | §9.6 per-kind procedure; SettlementEvidence emission |
 | Pipeline executor | PIPE-1 through PIPE-5 |
 | SettlementEvidence consumer | Canonical hash recomputation; signature validation; amendment chain following |
@@ -2809,7 +2809,7 @@ type SessionState =
 
   | "aborted-by-self" | "aborted-by-other"
 
-  | "substrate-failure-paused"
+  | "substrate-failure-paused" | "failed-substrate"
 
 type SessionParty = {
 
@@ -3427,7 +3427,7 @@ This chapter sketches the test categories an implementer should cover to claim c
 
 - **Claim reference parser.** Test vectors for every v0.1 scheme: valid canonical form, valid non-canonical form (must canonicalise on read), invalid grammar (must reject), unknown-scheme handling (must not silently accept).
 - **Bundle producer (BP-1..BP-4).** Round-trip: produce bundle → canonical form → hash → sign-with-domain-separator → anchor. Verify each output against fixture.
-- **Bundle reader (BR-1..BR-4).** Accept-conformant-bundle, reject-unsigned-bundle, reject-missing-required-verifiedBy, treat-unknown-scheme-as-unverified.
+- **Bundle reader (BR-1..BR-5).** Accept-conformant-bundle, reject-unsigned-bundle, reject-missing-required-verifiedBy, treat-unknown-scheme-as-unverified, reject-unverified-presentedBy-when-primaryClaimSelector-set.
 - **BundleRequirement matching.** All branches of the match algorithm: required-claim missing, required-claim failing-verification, oneOf-group satisfied/unsatisfied, primaryClaimSelector match/mismatch.
 - **Listing publisher (LP-1..LP-4).** Sign-with-domain-separator, anchor, version monotonicity, revocation marker publication.
 - **Listing reader (LR-1..LR-3).** Validation-order halt-on-first-failure (one test per validation step), revoked-listing refusal, size-cap rejection.
@@ -3438,6 +3438,7 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **Method common contract (CM-1..CM-5).** For each of the eight v0.1 methods: input-shape validation; outcome classification (pass/fail/indeterminate); attestation anchoring; VerifyResult emission with correct method field; canonical form + domain-separated signature.
 - **Recipe authoring (RA-1..RA-5).** Steward-key signature with domain separator; canonical anchoring; version monotonicity; supersedes-on-replace.
 - **Recipe resolution.** Index lookup; content-hash verification; version pinning.
+- **ParserSpec semantics (PSP-1..PSP-4).** Match-predicate evaluation per format (jsonPath/selector/xPath/matcher); decision mapping (parse-fail → error not fail; negative-match inversion via `negativeMatch`); `indeterminateOn` predicates evaluated before the match predicate → indeterminate; dataMap extraction recorded without changing the decision; deterministic parsing with no script execution / sub-resource fetch / redirect following.
 - **Retry semantics (VP-R1..VP-R4).** Transient retry on error; permanent no-retry; new attestation on each retry; no-retry-on-indeterminate by default; retryOnIndeterminate flag honoured when set.
 - **Caching semantics (VP-C1..VP-C3).** Reuse within validUntil; record-update on reuse; maxAge override of recipe default.
 - **Aggregation.** Each branch of classify_required: missing, all-failing, all-indeterminate, all-errored, mixed-with-pass. oneOf groups: failure vs error vs indeterminate distinction. Precedence: failures > errors > indeterminates when classifying overall.
@@ -3451,17 +3452,18 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **Channel failure detection.** Liveness-bound exceeded → channel-failed classification; abort message round-trip.
 - **negotiate-fixed-price.** Live signature path; auto-accept commitment + instance-signature path; rejection of pre-issued per-instance signatures.
 - **negotiate-rfq (RFQ-1..RFQ-4).** maxTurns enforcement; turn-timeout enforcement; out-of-band-terms rejection by commit-agreement.
-- **negotiate-sealed-envelope (SE-1..SE-6).** commitDeadline enforcement (chain-timestamped); reveal-window enforcement; reveal-mismatch exclusion; deterministic selection (including rule-ref with content-hash check); rule-ref content-hash mismatch fails the phase.
+- **negotiate-sealed-envelope (SE-1..SE-7).** commitDeadline enforcement (chain-timestamped); reveal-window enforcement against SR-2 anchor timestamp (SE-3); reveal-mismatch exclusion; deterministic selection with anchor-timestamp tie-break and lexicographic-bidHash fallback (SE-5); rule-ref content-hash binding and mismatch-fails-the-phase (SE-6); domain-separated bidHash (`dacs-sealed-bid:v1:`) and bid-commitment salt floor — ≥256-bit entropy, non-reuse, base64url encoding (SE-7).
 - **Agreement validation (§8.5.2).** Price-band check; rail-acceptance check; deliverable-conformance check; deadline-bound check; pattern-match check.
 - **commit-agreement (CA-1..CA-4).** Refuse advance until ok-true; double-commit rejection; immutability after anchor; domain-separated commitment signature.
 
 ### 14.4 DACS-4 — Settle
 
 - **Rail authoring (RD-1..RD-5).** Steward-key signature with domain separator; anchoring; version monotonicity; railType/asset/network consistency.
-- **Payment common contract (PC-1..PC-4).** For each of the six pay-* phases: input-shape validation; anchored SettlementEvidence; PhaseHandlerResult with correct attestationRef; outcome classification across all errorClass values.
+- **Payment common contract (PC-1..PC-5).** For each of the six pay-* phases: input-shape validation; anchored SettlementEvidence; PhaseHandlerResult with correct attestationRef; outcome classification across all errorClass values; and currency-resolution (PC-5) — `amount.currency` MUST resolve to `rail.asset` per AssetSpec kind (symbol for erc20/spl/native, isoCurrency for fiat-via-ap2, canonicalSymbol for stablecoin-cross-chain) and a mismatch MUST be rejected as `ok:false`/`errorClass:"permanent"`.
 - **pay-evm-erc20 / pay-solana-spl.** Decimal-conversion correctness (no float arithmetic); chain-finality wait; SettlementEvidence with correct txRef kind.
 - **Canonical decimal (CD-1).** PriceTerm.amount canonicalisation: economically-equal forms (`"1.50"`, `"01.5"`, `"1.500"`) all normalise to `"1.5"` and produce identical agreement/SettlementEvidence JCS hashes and signatures; non-canonical input on read either canonicalises or is rejected per implementation policy; §8.5.2 price-band and price-equality checks compare canonicalised decimals, not raw strings.
 - **pay-cross-chain-htlc (HTLC-1..HTLC-9).** buyerSalt entropy enforcement; HKDF preimage-derivation correctness (IKM=buyerSalt, salt=jobId, info=agreementHash); salt-non-reuse across sessions; pre-finality-reveal rejection; timelock-refund path; per-chain native hashlock functions (keccak256 on EVM, sha256 on Solana, blake2b on Cosmos) producing distinct hashlocks from the same preimage; timelock asymmetry (timelock_source > timelock_dest + finality) enforced on absolute expiry instants under the source-lock-finality epoch (HTLC-7/HTLC-8), with mis-configured routes rejected; asymmetric-settlement (dest-revealed / source-claim-failed) state surfaced as evidence, not a refund (HTLC-9).
+- **Amendment validity (AMEND-1..AMEND-4).** `amendsEvidenceRef` resolves to an anchored SettlementEvidence with matching `jobId` (AMEND-1); refund / partial-refund amendments reference a `success`-outcome record only, and `correction` carries no `refundAmount` (AMEND-2); summed `refundAmount` across amendments for one record does not exceed its `paymentAmount`, currency-matched (AMEND-3); bundle assembly rejects or flags violating amendments and a flagged amendment is not treated as a valid unwind by DACS-5 (AMEND-4).
 - **pay-cross-chain-liquidity-tank.** BridgeOperation lifecycle ("empty" → "pending" → "completed" | "failed"); bridge_id recording; route-in-supported-scope validation.
 - **pay-ap2 / pay-x402.** Mandate-revocation handling; receipt-signature verification.
 - **Delivery phases.** deliver-storage-program with normal and extended-pointer payloads; deliver-entitlement with signature + anchor + scope; deliver-attested-payload composing DACS-2 attestation.
@@ -3473,7 +3475,7 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **Bundle production.** Two-sided anchoring at role-specific addresses; canonical-form equality between buyer and seller bundles in happy case; domain-separated signature ("dacs-bundle:v1:"); extended-pointer pattern for oversized bundles.
 - **Bundle consumption.** Two-sided lookup; one-sided-bundle → aborted-by-self classification; divergent-bundles → disputed classification.
 - **Reputation derivation.** All outcome partitions (completed / failed-perm / failed-counterparty / failed-substrate / aborted-by-self / aborted-by-other); party-fault denominator excluding failed-substrate; null vs zero metric distinction; rating aggregation via ratingRefs fetch.
-- **Per-primary-claim keying.** Reputation computed against bundle.presentedBy.primaryClaim; no inheritance across tiers.
+- **Per-primary-claim keying.** Reputation computed against the bundle party's primaryClaim (sourced from bundle.presentedBy); no inheritance across tiers.
 - **Rate phase.** Run-after-settle ordering; one-record-per-direction; signature with rating domain separator; bundle-inclusion.
 - **ERC-8004 publication (optional).** Token-owner-signed entry; bundle-anchor pointer correctness; rate-limit enforcement.
 
