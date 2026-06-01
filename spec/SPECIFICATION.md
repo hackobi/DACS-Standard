@@ -2537,7 +2537,19 @@ type PaymentPhaseType = "pay-evm-erc20" | "pay-solana-spl"
                       | "pay-ap2" | "pay-x402"
 
 type DeliveryPhaseType = "deliver-storage-program" | "deliver-entitlement" | "deliver-attested-payload"
+
+type ComponentSignature = {
+
+  algorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"
+
+  signer: ClaimReference                       // primary claim of the signing party; per-artifact role is given in each record's inline comment (e.g. phase orchestrator, refunding party, grantor)
+
+  value: string                                // signature over the domain-separated payload defined for the artifact (chapter 7§7.7)
+
+}
 ```
+
+Every anchored record that carries a `signature: ComponentSignature` field MUST populate it with this shape. The `signer` MUST be a ClaimReference whose role is fixed by the artifact's inline comment, and `value` MUST be the signature over that artifact's domain-separated payload as defined in its section.
 
 Canonical form is RFC 8785 JCS of the SettlementEvidence with the signature field omitted. Evidence hash is sha256(canonical_form), hex-encoded. The signature is computed over the domain-separated payload per chapter 7§7.7:
 signed_bytes := "dacs-evidence:v1:" || evidence_hash
