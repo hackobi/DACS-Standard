@@ -84,6 +84,7 @@ substrate-to-primitive mapping and production status. The unified SDK is [`@kyne
 | [`docs/flow-trace.md`](./docs/flow-trace.md) | End-to-end happy path as SDK-mapped pseudocode, with a sequence diagram and a verified SDK-compatibility note. |
 | [`CHANGELOG.md`](./CHANGELOG.md) | Normative change history. Start here if you implemented against an earlier draft. |
 | [`ROADMAP.md`](./ROADMAP.md) | Anticipated follow-on work (informative). What's deferred beyond v0.1 and why — no committed dates. |
+| [`QUICK_WINS.md`](./QUICK_WINS.md) | Small, additive repository improvements that contributors can land without changing v0.1 conformance semantics. |
 
 **New here?** Read the [builders guide](./docs/builders-guide.md) first, then the
 [flow trace](./docs/flow-trace.md), then the [specification](./spec/SPECIFICATION.md).

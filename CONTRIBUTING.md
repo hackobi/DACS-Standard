@@ -49,3 +49,16 @@ then, normative changes are merged by the steward after public discussion.
 The canonical specification lives in [`spec/`](./spec/). When proposing normative
 text changes, quote the affected passage and section number in your issue or PR
 description so the change is reviewable inline.
+
+## Validation
+
+For documentation-only changes, run the dependency-free link and anchor validator:
+
+```sh
+python3 scripts/validate-docs.py
+python3 -m unittest tests/test_validate_docs.py -v
+```
+
+The validator checks relative Markdown links and section anchors across the repo.
+Small additive tasks that do not change v0.1 conformance semantics are tracked in
+[`QUICK_WINS.md`](./QUICK_WINS.md).
