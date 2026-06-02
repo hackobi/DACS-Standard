@@ -13,6 +13,22 @@ The format used per release:
 
 ---
 
+## [Unreleased]
+
+Defect-triage and follow-on hardening on top of v0.1 (steward-merged via the issue triage of the cX3po review wave and the xm33 / DACS-X contributions).
+
+### Added
+
+- **Canonical-form rule family CF-1..CF-4** (§7.2, §6.3.1, §6.3.4) — CF-1 global NFC pre-canonicalisation of all signed/hashed string values; CF-2 ClaimReference canonical byte form (scheme lowercased before hash/sign/compare, identifier NFC, parameters sorted + uppercase-hex percent-encoded); CF-3 ClaimReference canonical identity = (scheme, identifier) only, parameters excluded from reputation keying; CF-4 logical-address delimiter encoding so the `dacsN:` logical address is reversibly parseable. Closes #7, #42, #54.
+- **SIG-5 preserve-unknown** signature verification + **`version_tag` = major-version** binding (§7.7), making §11.1.2 forward-readable shapes hold for signed artifacts. Conformance vectors for CF-1..CF-4 / CD-1 / SIG-5 added to §14.6. Closes #74.
+- **Normative session-state transition table** (§10.3.1) — rules ST-1..ST-7 (forward-only, abort entry from any `*-pending` framed as a party's right, rate branch, rate-non-fatal with no `rate-failed` state, terminal-state set + `endedAt`, substrate pause/resume) plus a state→bundle-`outcome` mapping resolving the `transient`/`settlement-atomicity` buckets. Closes #41, #80, #81, #91, #93, #97.
+
+### Fixed
+
+- **Demos logical→native address mapping did not match the StorageProgram SDK** (§6.2, §6.3.4). v0.1 stated `native_address := "stor-" + sha256(logical_address)` and required consumers to recompute the native address from the logical pattern. The actual Demos SDK (`storage/StorageProgram.ts`) derives `"stor-" + first40hex(sha256(deployerAddress + ":" + storageProgramName + ":" + nonce + ":" + salt))` — folding in the deployer address and the per-write transaction nonce (truncated to 40 hex), so the native address is **not** recomputable from the logical address alone. The §6.2 universal rule now distinguishes **pure mappings** (consumer recomputes directly) from **write-input mappings** (implementation MUST publish the logical→native binding via record metadata + discovery; consumer resolves through it); the §6.3.4 Demos binding shows the real derivation and requires binding publication. The CF-4 delimiter-encoding (logical-address reversibility) and this correction coexist: CF-4 governs the *logical* address; the *native* derivation is the write-input case. Surfaced by the `agent-commerce-demo` reference implementation (#106).
+
+---
+
 ## [0.1] — 2026-05-31
 
 First publicly released version.
