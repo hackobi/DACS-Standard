@@ -2747,7 +2747,7 @@ DACS-5 specifies how a completed session is anchored, signed, and converted into
 
 - A **session record schema** — the live, mutable state document the orchestrator maintains while a session runs. Holds phase results, error classifications, and the running event log. Off-chain by default.
 - An **attestation bundle format** — the frozen end-of-session artifact, signed by both parties, anchored via SR-2. Bundles are the audit unit.
-- A **session-state machine** — the deterministic state transitions from "draft" through "completed", "failed-perm", "failed-counterparty", "failed-substrate", or "aborted".
+- A **session-state machine** — deterministic, forward-only state transitions from `draft` to one of the terminal states (`finalised`, the `*-failed` states, `failed-substrate`, or the `aborted-by-*` states), enumerated as a normative transition table in §10.3.1.
 - A **reputation derivation algorithm** — a deterministic, per-primary-claim function from a set of bundles to a small set of headline metrics (completion rate, dispute rate, average rating, observed transactional volume).
 - An **optional rate phase** — a counterparty rating phase that produces a RatingRecord referenced from the bundle.
 - An **ERC-8004 publication surface** — the recommended mapping from DACS-5 reputation metrics to ERC-8004 reputation/validation registry entries.
@@ -2845,9 +2845,50 @@ type PhaseEntry = {
 
 #### 10.3.1 State transitions
 
-Transitions are deterministic. The orchestrator MUST: advance state only when the corresponding phase returns ok: true; on phase ok: false, transition to the appropriate failed-* state and classify per the phase’s errorClass; never reverse state direction within a session (failures end the session; new sessions get new jobIds).
-A commit-agreement rejection (a CA-3 re-commitment for an already-anchored jobId, or an agreement failing the §8.5.2 listing-conformance checks) returns ok: false and MUST transition the session to commit-failed, classified per the phase's errorClass; this is the appropriate failed-* state for the commit phase and is forward-only (it MUST NOT be folded back into negotiate-failed). A commit-failed session is summarised in the AttestationBundle via the existing outcome buckets (failed-perm or failed-counterparty per errorClass); no commit-specific outcome value is required.
-**Substrate-failure pause.** On errorClass: "substrate" (SR-2 or SR-3 unavailable, etc.), the orchestrator MAY transition to substrate-failure-paused and retry per a backoff schedule. Pauses MUST be time-bounded; after a per-listing maximum pause (default 3600 seconds), the session MUST transition to failed-substrate.
+Transitions are deterministic and forward-only. The orchestrator advances state only when the corresponding phase returns `ok: true`; on phase `ok: false` it transitions to that phase’s `*-failed` state and classifies per the phase’s `errorClass`. The only permitted non-forward transition is resume from `substrate-failure-paused` (ST-7 below). New sessions get new jobIds; a failed/aborted session is never reopened.
+
+**Transition table (normative).** The following table enumerates every legal `(from → to)` pair. A transition not listed is illegal; a conformant orchestrator MUST NOT perform it, and a §14.5 conformance run tests exactly this pair-set.
+
+| From | To (legal next states) | Trigger |
+|------|------------------------|---------|
+| `draft` | `vet-pending` | session opens; first phase scheduled |
+| `vet-pending` | `vet-completed` \| `vet-failed` \| `substrate-failure-paused` \| `aborted-by-self` \| `aborted-by-other` | Vet phase result |
+| `vet-completed` | `negotiate-pending` | next phase scheduled |
+| `negotiate-pending` | `negotiate-completed` \| `negotiate-failed` \| `substrate-failure-paused` \| `aborted-by-self` \| `aborted-by-other` | Negotiate phase result |
+| `negotiate-completed` | `commit-pending` | next phase scheduled |
+| `commit-pending` | `commit-completed` \| `commit-failed` \| `substrate-failure-paused` \| `aborted-by-self` \| `aborted-by-other` | commit-agreement result |
+| `commit-completed` | `settle-pending` | next phase scheduled |
+| `settle-pending` | `settle-completed` \| `settle-failed` \| `substrate-failure-paused` \| `aborted-by-self` \| `aborted-by-other` | Settle phase result |
+| `settle-completed` | `rate-pending` (pipeline has a rate phase) \| `finalised` (no rate phase) | ST-4 |
+| `rate-pending` | `rate-completed` \| `finalised` | ST-5 |
+| `rate-completed` | `finalised` | rate phase done |
+| `substrate-failure-paused` | the `*-pending` state it paused from \| `failed-substrate` | ST-7 |
+
+**Rules:**
+
+- (ST-1) **Forward-only.** Except for ST-7 resume, a transition MUST move toward a terminal state per the table. The orchestrator MUST NOT re-enter an earlier `*-pending` state (e.g. negotiate after commit).
+- (ST-2) **Phase failure.** A phase returning `ok: false` MUST transition to that phase’s `*-failed` state, classified by the phase’s `errorClass`. A commit-agreement rejection (a CA-3 re-commitment for an already-anchored jobId, or an agreement failing the §8.5.2 listing-conformance checks) is a `commit-pending → commit-failed` transition (forward-only; it MUST NOT be folded back into `negotiate-failed`).
+- (ST-3) **Abort.** At any `*-pending` state a party MAY withdraw, or decline to co-sign, before the phase reaches a `*-completed`/`*-failed` result; doing so terminates the session in an abort state. Withdrawing before being bound is a legitimate exercise of a party’s right to decline — it is NOT a protocol violation, and an abort outcome is therefore distinct from a `*-failed` performance failure. The abort state is recorded from the perspective of the party anchoring the bundle (per §10.4.3 / §10.11): the withdrawing party’s own bundle records `aborted-by-self`; the non-withdrawing party’s bundle records `aborted-by-other`. (A withdrawing party need not anchor a bundle at all; the §10.11 bundle-suppression rule lets the non-withdrawing party’s single-signed `aborted-by-other` bundle stand.) How an abort bears on reputation is governed by §10.5 / §10.11, not by this transition rule. Abort states are terminal.
+- (ST-4) **Rate branch.** `settle-completed` transitions to `rate-pending` iff the listing pipeline contains a rate phase; otherwise directly to `finalised`.
+- (ST-5) **Rate is non-fatal.** A rate phase that fails or is declined does NOT fail the session: `rate-pending` transitions to `finalised` regardless of rate outcome (per §10.6, absence of a rating does not block bundle production). There is deliberately no `rate-failed` state. A rate step parameter `{required: true}` is advisory for the rater’s own policy; it MUST NOT change this transition.
+- (ST-6) **Terminal states.** The terminal states are exactly: `finalised`, `vet-failed`, `negotiate-failed`, `commit-failed`, `settle-failed`, `failed-substrate`, `aborted-by-self`, `aborted-by-other`. `SessionRecord.endedAt` MUST be set on entry to any terminal state, and a bundle MUST be produced (§10.4.3). `draft`, all `*-pending`, all non-failed `*-completed`, `rate-pending`, and `substrate-failure-paused` are non-terminal.
+- (ST-7) **Substrate-failure pause & resume.** On `errorClass: "substrate"` (SR-2 or SR-3 unavailable, etc.) at any `*-pending` state, the orchestrator MAY transition to `substrate-failure-paused`, recording the paused-from `*-pending` state, and retry per a backoff schedule. On a successful retry the session resumes to the recorded `*-pending` state (the one permitted non-forward transition); the resumed phase MUST be idempotent or safe to re-drive (a phase that may have already broadcast an external effect — e.g. a pay-* phase — MUST check for that effect before re-issuing it). Pauses MUST be time-bounded; after a per-listing maximum pause (default 3600 seconds) the session MUST transition to `failed-substrate` (terminal).
+
+**State → bundle `outcome` mapping (normative).** Every terminal state maps to exactly one AttestationBundle `outcome` (§10.4), partitioned by the terminal phase’s `errorClass` where applicable:
+
+| Terminal state | errorClass | Bundle `outcome` |
+|----------------|-----------|------------------|
+| `finalised` | — | `completed` |
+| `vet-failed` / `negotiate-failed` / `commit-failed` / `settle-failed` | `permanent` | `failed-perm` |
+| (same) | `counterparty` | `failed-counterparty` |
+| (same) | `transient` (retry budget exhausted) | `failed-perm` |
+| (same) | `settlement-atomicity` | `failed-counterparty` |
+| (same) | `substrate` | resolves via ST-7 to `failed-substrate`, never a `*-failed` terminal |
+| `failed-substrate` | `substrate` | `failed-substrate` |
+| `aborted-by-self` | — | `aborted-by-self` |
+| `aborted-by-other` | — | `aborted-by-other` |
+
+`transient` after retry-budget exhaustion is a permanent inability to complete the phase → `failed-perm`. `settlement-atomicity` (one side of a cross-chain settlement landed, the other did not) is attributed to the counterparty/rail, not the local party → `failed-counterparty`; the asymmetric HTLC sub-case (§9.5.4, HTLC-9) additionally emits its structured evidence and is closed by a `correction` amendment. No terminal state lacks an `outcome`, and no `outcome` lacks a producing terminal state.
 
 #### 10.3.2 Persistence and visibility
 
@@ -3472,7 +3513,7 @@ This chapter sketches the test categories an implementer should cover to claim c
 
 ### 14.5 DACS-5 — Verify
 
-- **Session state transitions.** Each state → next-state pair from §10.3.1; reverse-direction rejection; substrate-failure-paused timeout to failed-substrate.
+- **Session state transitions.** Every `(from → to)` pair MUST be in the §10.3.1 transition table and no other; illegal-pair rejection (e.g. negotiate after commit, ST-1); abort entry from any `*-pending` (ST-3); rate branch and rate-non-fatal (ST-4/ST-5); substrate-failure pause → recorded-pending resume on success and → failed-substrate on timeout (ST-7); every terminal state maps to its §10.3.1 `outcome` (ST-6 + the state→outcome table).
 - **Bundle production.** Two-sided anchoring at role-specific addresses; canonical-form equality between buyer and seller bundles in happy case; domain-separated signature ("dacs-bundle:v1:"); extended-pointer pattern for oversized bundles.
 - **Bundle consumption.** Two-sided lookup; one-sided-bundle → aborted-by-self classification; divergent-bundles → disputed classification.
 - **Reputation derivation.** All outcome partitions (completed / failed-perm / failed-counterparty / failed-substrate / aborted-by-self / aborted-by-other); party-fault denominator excluding failed-substrate; null vs zero metric distinction; rating aggregation via ratingRefs fetch.
