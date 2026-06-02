@@ -131,3 +131,4 @@ multi-party governance is named follow-on work (§11.2.6 of the spec).
 
 Released under the [MIT License](./LICENSE). The specification text and any
 reference code in this repository are free to read, implement, and build on.
+Forge agent smoke test - path verified.
