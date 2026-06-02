@@ -329,7 +329,7 @@ async function negotiateRFQ(
   // 3. Construct the AgreementDocument from accepted terms.
   const agreement = {
     jobId,
-    derivedFromPattern: "negotiate-rfq",
+    derivedFromPattern: "rfq",  // AgreementDocument enum value (the DACS-3 phase kind is "negotiate-rfq"; the agreement records the bare pattern "rfq" per §8.5)
     listingRef: listing.anchor,
     listingContentHash: listing.contentHash,
     parties: {
