@@ -61,7 +61,8 @@ The roadmap has two parts:
 |------|--------|-------|
 | CCI-keyed L2PS membership + channel-envelope API + transcript export | Substrate-live; SDK backlog | Today the CH-1..CH-5 channel properties are orchestrator-enforced at the application layer; these move enforcement into the SR-4 substrate (DACS-3 Tier-1). |
 | `negotiate-multi-quote` | Anticipated | First-class 1-to-N RFQ; today approximated via `negotiate-sealed-envelope` (§11.2.3). |
-| L2PS channel key rotation / forward secrecy | Anticipated | Rekeying, session-key expiry, and forward-secrecy requirements for long-lived (hours/days) negotiation channels. Lands with the SR-4 ergonomics work. || Dynamic channel membership (#21) | Candidate; design-issue first | Mid-negotiation add/remove of channel members with a normative `admissionPolicy` schema and a `membership-change` message body. v0.1 fixes membership for the channel's lifetime (CH-1) and reserves `membership-change`; reopening it needs an admission-policy + verifier-validation design (and a real use case beyond the three v0.1 negotiate patterns). |
+| L2PS channel key rotation / forward secrecy | Anticipated | Rekeying, session-key expiry, and forward-secrecy requirements for long-lived (hours/days) negotiation channels. Lands with the SR-4 ergonomics work. |
+| Dynamic channel membership (#21) | Candidate; design-issue first | Mid-negotiation add/remove of channel members with a normative `admissionPolicy` schema and a `membership-change` message body. v0.1 fixes membership for the channel's lifetime (CH-1) and reserves `membership-change`; reopening it needs an admission-policy + verifier-validation design (and a real use case beyond the three v0.1 negotiate patterns). |
 
 ## Verify & accountability (DACS-5)
 
