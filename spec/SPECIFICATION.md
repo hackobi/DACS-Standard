@@ -504,11 +504,11 @@ A reader MUST evaluate a candidate IdentityBundle against a BundleRequirement us
 ```
 match(bundle, requirement):
 
-  1. For each cr in requirement.required:
+  1. (MA-1) For each cr in requirement.required:
 
        if NOT find_claim(bundle, cr): return REJECT("missing required: <cr.scheme>")
 
-  2. For each group in (requirement.oneOf or []):
+  2. (MA-1) For each group in (requirement.oneOf or []):
 
        any_satisfied := false
 
@@ -518,11 +518,11 @@ match(bundle, requirement):
 
        if NOT any_satisfied: return REJECT("oneOf group unsatisfied")
 
-  3. If requirement.primaryClaimSelector is set:
+  3. (MA-2) If requirement.primaryClaimSelector is set:
 
        if bundle.presentedBy.scheme != requirement.primaryClaimSelector: return REJECT
 
-  3b. If requirement.primaryClaimSelector is set:
+  3b. (MA-3) If requirement.primaryClaimSelector is set:
 
        // The exact claim presentedBy resolves to MUST itself be verified — not merely some claim of the selector scheme.
 
@@ -532,7 +532,7 @@ match(bundle, requirement):
 
        if presented is null: return REJECT   // presentedBy does not resolve to a claim in the bundle
 
-       if presented.verifiedBy missing OR resolution fails OR presented.verifiedBy.decision != "pass": return REJECT
+       if presented.verifiedBy missing OR resolution fails OR (the VerifyResult resolved from presented.verifiedBy).decision != "pass": return REJECT   // decision is read from the resolved VerifyResult, not from VerifyResultRef
 
   4. If requirement.preferredPresentation is set AND != "any":
 
@@ -546,7 +546,7 @@ find_claim(bundle, cr):
 
     if c.ref.scheme != cr.scheme: continue
 
-    if cr.verificationRequired AND (c.verifiedBy missing OR resolution fails OR decision != "pass"): continue
+    if cr.verificationRequired AND (c.verifiedBy missing OR resolution fails OR (the VerifyResult resolved from c.verifiedBy).decision != "pass"): continue
 
     if cr.maxAge AND (now - c.issuedAt > cr.maxAge): continue
 
@@ -1060,7 +1060,7 @@ type VCMethodInput = {
 }
 ```
 
-**Procedure.** Verifier parses the presentation; verifies the VC signature against the issuer key (resolved per VC method); if issuerAllowList is set, MUST reject if the VC issuer is not in the list; verifies the VC has not expired and is not revoked (via status list, if present); verifies the VC’s subject identifier matches the claim’s identifier canonically; **verifies the VerifiablePresentation's holder-binding proof — the presentation MUST be signed by the key controlling the credential subject (the holder), over a challenge that includes the session nonce (the bundle/DACS-3 `sessionNonce`); MUST reject if the holder proof is absent or does not verify** (without this, a verified VC captured from one party could be replayed by a non-holder, or re-presented across sessions — verifying the VC's issuer signature alone proves the credential is genuine, not that the presenter holds it); anchors the VC (or its hash, if VC is private) via SR-2; extracts structured data per recipe.parserRules; returns VerifyResult with pass if all steps succeed, fail on signature/expiry/revocation/holder-binding failures, indeterminate on parser errors. **Trust model:** issuer; W3C VC spec; key resolution method (e.g. did:web). **Substrate:** SR-2.
+**Procedure.** Verifier parses the presentation; verifies the VC signature against the issuer key (resolved per VC method); if issuerAllowList is set, MUST reject if the VC issuer is not in the list; verifies the VC has not expired and is not revoked (via status list, if present); verifies the VC’s subject identifier matches the claim’s identifier canonically; **verifies the VerifiablePresentation's holder-binding proof — the presentation MUST be signed by the key controlling the credential subject (the holder), over a challenge that includes the session nonce (the bundle/DACS-3 `sessionNonce`); MUST reject if the holder proof is absent or does not verify** (without this, a verified VC captured from one party could be replayed by a non-holder, or re-presented across sessions — verifying the VC's issuer signature alone proves the credential is genuine, not that the presenter holds it); anchors the VC (or its hash, if VC is private) via SR-2; extracts structured data per recipe.parserRules; returns VerifyResult with pass if all steps succeed, fail on signature/expiry/revocation/holder-binding failures, and **error** on parser failures (a verifier-side failure to consume the presentation — never `fail`; consistent with PSP-2 and the §7.5.1 decision semantics, so it is retryable per VP-R1 rather than treated as a terminal authority answer). A parseable-but-inconclusive presentation is `indeterminate`. **Trust model:** issuer; W3C VC spec; key resolution method (e.g. did:web). **Substrate:** SR-2.
 
 #### 7.3.3 tlsnotary
 
@@ -1401,7 +1401,7 @@ Every Recipe MUST declare an availability value. The value names the recipe’s 
 | disabled | Recipe exists but the steward has marked it not-for-use, typically because a successor recipe exists or the underlying scheme is being retired. Verifiers MUST NOT initiate new sessions using disabled recipes; in-flight sessions continue. |
 | failed | Recipe’s underlying authority is currently broken (endpoint down, response format changed in a way the parser cannot consume, certificate expired). Operationally indistinguishable from "live but unreachable" until the steward publishes an emergency revision or marks the recipe disabled. |
 
-**Consumer obligations.** Verifiers MUST inspect availability before running the recipe. (RAV-1) A verifier MUST NOT silently treat operator_gated, closed_data, bilateral, mocked, disabled, or failed as live. (RAV-2) A verifier presented with a VerifyResult produced under a non-live availability MUST surface the availability value to the verifier’s consumer; a UI flattening seven states into "verified" / "not verified" without disclosing availability is non-conformant. (RAV-3) Aggregation under §7.7.1 treats VerifyResults from disabled or failed recipes as decision = "error" regardless of the underlying authority response (the recipe is non-operational; any output is unreliable). (RAV-4) The availability of an alternative method does not override the availability of the default; consumers selecting an alternative MUST honour that alternative’s own availability.
+**Consumer obligations.** Verifiers MUST inspect availability before running the recipe. (RAV-1) A verifier MUST NOT silently treat operator_gated, closed_data, bilateral, mocked, disabled, or failed as live. (RAV-2) A verifier presented with a VerifyResult produced under a non-live availability MUST surface the availability value to the verifier’s consumer; a UI flattening seven states into "verified" / "not verified" without disclosing availability is non-conformant. (RAV-3) Aggregation under §7.7.1 treats VerifyResults from disabled, failed, or **mocked** recipes as decision = "error" regardless of the underlying authority response (the recipe is non-operational or a stub; any output is unreliable). In particular a `mocked` recipe MUST NOT satisfy a required claim — its `pass` is a test fixture, not a verification. (`operator_gated` / `closed_data` / `bilateral` differ: they can run validly once the relevant operator-side configuration is in place, so they are not forced to `error`.) (RAV-4) The availability of an alternative method does not override the availability of the default; consumers selecting an alternative MUST honour that alternative’s own availability.
 **Steward obligations.** The current steward (§7.4.4 and §11.1.1) MUST keep availability values current. (RAV-5) Discovery that an authority endpoint has gone down requires either an emergency revision (§7.4.4) or a recipe revision setting availability to failed within a reasonable window. (RAV-6) Transitions from live → failed and failed → live are themselves recipe revisions and MUST be signed and anchored normally. (RAV-7) Availability is per-recipe-version, not per-scheme; a v3 recipe MAY be live while a v2 recipe is disabled for the same scheme.
 **Why this is normative, not informative.** Earlier drafts carried this distinction in the front-matter production-mapping legend as informative iconography (🟢 / 🟡 / 🔵). That framing flattened distinct operational states (live, operator-gated, closed-data, mocked, etc.) into a single "wired" status and pushed disambiguation onto every implementer’s UI surface. Promoting availability to a normative field on the recipe itself moves the disambiguation into the protocol layer, where verifiers can reason about it programmatically and consumers can rely on conformant disclosure. This change was proposed by PATH-OS Labs (third-party reviewer; §11.3) and accepted into v0.1.
 
