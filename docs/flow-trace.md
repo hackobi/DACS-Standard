@@ -559,7 +559,7 @@ async function settle(
 ```
 
 Notes:
-- **Liquidity Tank access is implicit, not explicit.** The SDK has no `demos.tank.*` namespace. A cross-chain `xm` WorkStep with a supported source/dest pair routes through a tank; the same call would fall through to an HTLC if the tank capacity was exhausted (Phase 2-4 of the Native Bridges roadmap). The protocol's `pay-cross-chain-liquidity-tank` vs `pay-cross-chain-htlc` distinction is at the rail registry level — both compile to similar `WorkStep`s, with the rail definition telling the node which mechanism it prefers.
+- **Liquidity Tank access is implicit, not explicit.** The SDK has no `demos.tank.*` namespace. A cross-chain `xm` WorkStep with a supported source/dest pair routes through a tank. At the SDK level the same call *could* be served by HTLC if tank capacity were exhausted — but the **DACS-4 rail model forbids silent mechanism substitution** (§9.5.5): a pinned `pay-cross-chain-liquidity-tank` rail MUST NOT fall through to HTLC. The produced `txRef.kind` MUST match the pinned rail; a phase whose executed mechanism differs MUST fail (errorClass: permanent). An implementation wanting HTLC fallback expresses it as a distinct pinned rail / phase, not an implicit fallthrough.
 - **The entitlement key is off-chain.** Only the hash of the API key is on-chain. The raw key is delivered to the buyer via encrypted message to the buyer's primary key (typically as a payload in an L2PS message, or directly to the buyer's wallet inbox).
 - **One DemosWork per phase, or one per session?** The trace shows one `DemosWork` for the payment phase; the entitlement is anchored as a separate write. Production code can compose them into a single `DemosWork` if atomic execution is required, but the protocol allows independent anchoring (each phase produces its own evidence record).
 
@@ -760,7 +760,7 @@ This is on the DACS-4 build backlog ("WorkStep wrapper for `pay-cross-chain-liqu
 
 **Open questions surfaced by writing this SDK-mapped trace** (different from the protocol-only trace's open questions):
 
-1. The `xm`-step routing decision (tank vs HTLC) happens at the node, not in caller code. Should the protocol's `pay-cross-chain-liquidity-tank` vs `pay-cross-chain-htlc` distinction be enforceable from the caller's side, or is "the node picks the best route" the right model? *Suggests: keep the rail-registry distinction, let the node choose the mechanism, but require the resulting `txRef.kind` to match the rail chosen — fail the phase if rail said "tank" and node fell back to HTLC.*
+1. The `xm`-step routing decision (tank vs HTLC) happens at the node, not in caller code. **Resolved (§9.5.5, normative, issue #60):** the rail-registry distinction is enforced — the produced `txRef.kind` MUST match the pinned rail, and a phase that executed a different mechanism than pinned MUST fail (errorClass: permanent). No silent tank→HTLC fallthrough; HTLC fallback must be a distinct pinned rail.
 
 2. SR-3 today produces a hash-commitment. The protocol's v0.2+ strengthening adds a validator-body-signed mode. **What's the migration trigger?** Schemes that require it (lei, finra-crd, ofac-clear) would need to be flagged in their recipes when the new mode ships, and old recipes would need to be re-anchored. *Suggests: spec should explicitly require new recipe versions, not in-place upgrades, when the trust model changes.*
 

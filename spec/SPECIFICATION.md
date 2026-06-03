@@ -2067,7 +2067,7 @@ Verifiers MUST recompute the canonical form, agreement hash, and domain-separate
 
 #### 8.5.2 Listing conformance validation
 
-A verifier MUST validate the agreement against its referenced listing: terms.price.currency MUST equal the listing pricing currency (for negotiable pricing, bandCenter.currency; for fixed pricing, the listed price currency) — a band or equality comparison across differing currencies MUST be rejected before any amount comparison; terms.price MUST lie within the listing’s pricing band (if pricing is negotiable, within the declared negotiable.minPct / negotiable.maxPct band; if fixed, equal to the listed price); terms.rail MUST appear in listing.acceptedRails; terms.deliverable MUST conform to the listing’s offering.deliverable — specifically: terms.deliverable.deliverableType MUST equal the listing offering.deliverable kind, terms.deliverable.hash MUST equal the canonical DeliverableRef.hash of the listing’s offering.deliverable (per §9.3), and terms.deliverable.schemaUrl MUST equal the listing offering.deliverable.schemaUrl (both absent, or both present and equal); terms.deadline MUST be ≤ generatedAt + listing.terms.deadlineSecAfterCommit; derivedFromPattern MUST match the listing’s pipeline-declared negotiation pattern. Agreements failing any check MUST be rejected by commit-agreement.
+A verifier MUST validate the agreement against its referenced listing: terms.price.currency MUST equal the listing pricing currency (for negotiable pricing, bandCenter.currency; for fixed pricing, the listed price currency) — a band or equality comparison across differing currencies MUST be rejected before any amount comparison; terms.price MUST lie within the listing’s pricing band (if pricing is negotiable, within the declared negotiable.minPct / negotiable.maxPct band; if fixed, equal to the listed price); terms.rail MUST appear in listing.acceptedRails; terms.deliverable MUST conform to the listing’s offering.deliverable — specifically: terms.deliverable.deliverableType MUST equal the listing offering.deliverable kind, terms.deliverable.hash MUST equal the canonical DeliverableRef.hash of the listing’s offering.deliverable (per §9.3), and terms.deliverable.schemaUrl MUST equal the listing offering.deliverable.schemaUrl (both absent, or both present and equal); terms.deadline MUST be ≤ committedAt + listing.terms.deadlineSecAfterCommit, where committedAt is the SR-2 anchor timestamp of the commitment record (§8.6) — the same objective, substrate-determined clock SE-2 uses — NOT the self-reported `generatedAt`, which a party could backdate to widen the settle window; the listing's `validity.notAfter` (if set) MUST be ≥ committedAt — the listing MUST NOT have expired between read and commit-agreement (the §6.3.4 step-3 read-time check governs discovery; this re-check governs commit, closing the read-to-commit interval); derivedFromPattern MUST match the listing’s pipeline-declared negotiation pattern. Agreements failing any check MUST be rejected by commit-agreement.
 
 ### 8.6 Commitment phase (commit-agreement)
 
@@ -2281,7 +2281,7 @@ type DeliverableSpec =
 
   | { kind: "entitlement"; durationSec: number; renewable: boolean }
 
-  | { kind: "attested-payload"; payloadFormat: string; expectedSizeBytes?: number }
+  | { kind: "attested-payload"; payloadFormat: string; verificationMethod?: VerificationMethod; expectedSizeBytes?: number }
 
   | { kind: "external"; description: string; verificationMethod?: VerificationMethod }
 
@@ -2459,7 +2459,7 @@ Every RailDefinition MUST declare an availability value, with the same value set
 - **disabled** — rail exists in the registry but the steward has marked it not-for-use. Orchestrators MUST NOT initiate new sessions selecting disabled rails; in-flight sessions continue.
 - **failed** — rail’s underlying network or asset path is currently broken (chain congestion preventing settlement, asset contract paused, bridge offline).
 
-**Orchestrator obligations.** (RAV-R1) An orchestrator MUST inspect rail availability before selecting a rail for a session. (RAV-R2) An orchestrator MUST NOT select rails with availability values disabled or failed. (RAV-R3) An orchestrator MAY select rails with availability values operator_gated, closed_data, or bilateral only if the relevant operator-side configuration is in place; this is a runtime preflight check, not a static property of the rail. (RAV-R4) When a rail in an in-flight session transitions from live to failed mid-session, the orchestrator MUST fail the session with errorClass = substrate (rail is non-operational) rather than counterparty.
+**Orchestrator obligations.** (RAV-R1) An orchestrator MUST inspect rail availability before selecting a rail for a session. (RAV-R2) An orchestrator MUST NOT select rails with availability values disabled or failed. (RAV-R3) An orchestrator MAY select rails with availability values operator_gated, closed_data, or bilateral only if the relevant operator-side configuration is in place; this is a runtime preflight check, not a static property of the rail. (RAV-R4) A rail's `availability` is pinned at session start (§9.13), so a mid-session availability *flip* is not observable from the pinned definition. RAV-R4 therefore binds at the point of use: if a settlement attempt on the pinned rail fails because the rail is non-operational — a rail-down / substrate failure, distinct from a transient RPC hiccup or a counterparty error — the orchestrator MUST classify the failure errorClass = substrate (rail is non-operational), not counterparty. A proactive out-of-band rail-liveness probe that lets an orchestrator detect failure *before* attempting settlement (mirroring the §8.12 CH-4 channel-liveness probe) is a roadmap item; v0.1 detects rail failure at the settlement attempt.
 **Steward obligations.** Same as recipe availability (RAV-5, RAV-6, RAV-7 in §7.4.5) applied to rails. The steward maintains availability values current; transitions are signed and anchored revisions; availability is per-rail-version.
 
 ### 9.5 Payment phases
@@ -2533,6 +2533,7 @@ Substrate-coordinated atomic settlement using pre-funded liquidity primitives. O
 **Procedure.** Resolves rail and verifies asset.kind == "stablecoin-cross-chain" and network.kind == "cross-chain" with mechanism: "liquidity-tank"; selects liquidityTankIds matching (sourceChainId, destChainId); validates the route is in v0.1 supported scope (today: ETH Sepolia → Polygon Amoy, USDC, unidirectional); calls the substrate’s native bridge API — on Demos, constructs a BridgeOperation conforming to kynesyslabs/sdks/src/bridge/nativeBridgeTypes.ts with originChainType, destinationChainType, originAddress, destinationAddress, originAmount, originAsset, destinationAsset; submits via demos.bridge.submitBridgeOperation(…); the substrate’s validator shard executes lock-on-source and release-on-dest atomically (within the substrate’s consensus epoch); records the bridge_id (the 16-char hash that is the canonical end-to-end tracking handle); waits for BridgeOperation.status to transition "empty" → "pending" → "completed"; constructs SettlementEvidence with txRef of kind liquidity-tank including bridgeId, both lock and release tx hashes; anchors via SR-2; returns success.
 **Trust model.** On Demos, Liquidity Tanks are operated by a rotating Demos validator shard under 2/3 BFT multisig with a 15-day deployer emergency-recovery path. This is "the operator is the substrate itself", not "no operator". The tank contracts (LiquidityTank.sol) are audited (600+ lines) and deployed to ETH Sepolia (0x7AE3A8B899BE0D9E9de51b81a9912C0CEE128d88) and Polygon Amoy (0x57cA16EeE7fbeC69BFD46E4806B5d91e173dd600). Other substrates implementing SR-5 via different mechanisms inherit their own substrate trust model; recipes referencing this rail MUST be evaluated against the relevant substrate’s security profile.
 **Failure modes.** Tank insufficiency on dest → transient (retry after re-balancing); source-lock succeeds but substrate epoch interruption prevents dest-release → settlement-atomicity (substrate-native recovery applies per SR-5 implementation; on Demos the 15-day emergency recovery is the backstop); BridgeOperation.status == "failed" → permanent (deterministic rejection by tank shard).
+**No mechanism substitution (normative).** The pinned rail's mechanism is binding. On tank insufficiency or capacity exhaustion the orchestrator MUST retry the pinned tank rail (transient) or fail the phase — it MUST NOT silently fall through to a different mechanism (e.g. `pay-cross-chain-htlc`). The produced `txRef.kind` MUST match the pinned rail (§9.14); a phase whose executed mechanism differs from the pinned rail MUST fail with errorClass: permanent. Silent substitution would violate the §9.13 pinned-rail rule and break the one-to-one phase↔txRef-kind correspondence. An implementation wanting HTLC fallback MUST express it as a distinct pinned rail / phase, not an implicit fallthrough.
 **Evidence scope (v0.1).** Tank SettlementEvidence is **success-only**: both `lockTxHash` and `releaseTxHash` are present when the bridge reaches `completed`. A locked-but-not-yet-released state inside the recovery window is surfaced via the settlement-atomicity failure mode above and resolved by the substrate's native recovery path; v0.1 does **not** define a distinct *recovery-pending* evidence marker or state to machine-distinguish a recoverable lock from a terminal loss. A recovery-pending marker (a `recoveryDeadline` field and/or a settle-recovery-pending state, analogous to HTLC-9's open-state handling) is a roadmap item.
 
 #### 9.5.6 pay-ap2
@@ -2561,7 +2562,7 @@ Seller writes a Storage Program (SR-2) containing the deliverable payload. Addre
 #### 9.6.2 deliver-entitlement
 
 Seller issues an EntitlementRecord granting the buyer time-bound access to a service.
-**Procedure.** Validates agreement.terms.deliverable.deliverableType == "entitlement"; seller constructs the EntitlementRecord:
+**Procedure.** Validates agreement.terms.deliverable.deliverableType == "entitlement"; resolves the entitlement parameters (`durationSec`, `renewable`) from the **DeliverableSpec** — the listing's `offering.deliverable`, bound to the agreement by the §8.5.2 hash check — NOT from `agreement.terms.deliverable`, which is a `DeliverableRef` carrying only `deliverableType` / `hash` / `schemaUrl?` and none of these fields; seller constructs the EntitlementRecord:
 
 ```
 type EntitlementRecord = {
@@ -2576,24 +2577,26 @@ type EntitlementRecord = {
 
   startsAt: number                     // unix ms
 
-  endsAt: number                       // unix ms; computed from agreement.terms.deliverable.durationSec
+  endsAt: number                       // unix ms; computed from the entitlement DeliverableSpec's durationSec (listing offering.deliverable, hash-bound per §8.5.2)
 
   scope: { service: string; tier?: string; quotas?: Record<string, number> }
 
   renewable: boolean
+
+  renewalSeq: number                   // 0 for the original grant; incremented per renewal (address discriminator)
 
   signature: ComponentSignature
 
 }
 ```
 
-Seller signs the EntitlementRecord over the domain-separated payload "dacs-entitlement:v1:" || sha256(canonical_JCS(record_without_signature)) per chapter 7§7.7; anchors the EntitlementRecord via SR-2 at dacs4:entitlement:{jobId}; constructs SettlementEvidence; returns success. Buyer presents the EntitlementRecord (or its hash + anchor) at the service endpoint to access the entitled service. The service endpoint verifies the signature and anchor, checks now is within [startsAt, endsAt], and serves accordingly.
-**Renewal.** If renewable: true and the buyer re-pays before endsAt, the seller MAY issue a new EntitlementRecord with extended endsAt and the same jobId. Renewal records MUST be anchored separately.
+Seller signs the EntitlementRecord over the domain-separated payload "dacs-entitlement:v1:" || sha256(canonical_JCS(record_without_signature)) per chapter 7§7.7; anchors the EntitlementRecord via SR-2 at dacs4:entitlement:{jobId}:{renewalSeq} (renewalSeq = 0 for the original grant); constructs SettlementEvidence; returns success. Buyer presents the EntitlementRecord (or its hash + anchor) at the service endpoint to access the entitled service. The service endpoint verifies the signature and anchor, checks now is within [startsAt, endsAt], and serves accordingly.
+**Renewal.** If renewable: true and the buyer re-pays before endsAt, the seller MAY issue a new EntitlementRecord with extended endsAt, the same jobId, and an **incremented renewalSeq**, anchored at dacs4:entitlement:{jobId}:{renewalSeq}. The renewalSeq discriminator gives each renewal a distinct SR-2 address so it does not collide with or overwrite the original grant (the address is otherwise fully determined by jobId on immutable content-addressed storage). A consumer resolves the current grant by reading the highest renewalSeq present for the jobId.
 
 #### 9.6.3 deliver-attested-payload
 
 Seller delivers a payload whose authenticity is attested via DACS-2 (e.g., the payload is a TLS-attested data fetch).
-**Procedure.** Validates agreement.terms.deliverable.deliverableType == "attested-payload"; seller performs the underlying fetch / computation; produces a DACS-2 attestation over the result (using the recipe specified in deliverable.verificationMethod); writes the payload + attestation reference into a Storage Program at dacs4:deliverable:{jobId}; constructs SettlementEvidence carrying deliverableContentHash, deliverableAnchor, and attestationRef pointing at the DACS-2 attestation; anchors via SR-2; returns success.
+**Procedure.** Validates agreement.terms.deliverable.deliverableType == "attested-payload"; seller performs the underlying fetch / computation; produces a DACS-2 attestation over the result (using the recipe specified in the attested-payload DeliverableSpec's verificationMethod, resolved from the listing's offering.deliverable per §8.5.2 — not from the DeliverableRef in agreement.terms.deliverable); writes the payload + attestation reference into a Storage Program at dacs4:deliverable:{jobId}; constructs SettlementEvidence carrying deliverableContentHash, deliverableAnchor, and attestationRef pointing at the DACS-2 attestation; anchors via SR-2; returns success.
 
 ### 9.7 Settlement evidence
 
