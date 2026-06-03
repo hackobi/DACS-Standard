@@ -12,6 +12,7 @@ class ImplementationReadinessArtifactTests(unittest.TestCase):
         text = workflow.read_text(encoding="utf-8")
         self.assertIn("pull_request", text)
         self.assertIn("python3 scripts/validate_conformance_vectors.py", text)
+        self.assertIn("python3 scripts/validate_domain_separators.py", text)
         self.assertIn("python3 scripts/validate-docs.py", text)
         self.assertIn("python3 -m unittest discover tests -v", text)
 

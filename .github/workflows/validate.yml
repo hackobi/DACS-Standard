@@ -24,6 +24,9 @@ jobs:
       - name: Validate conformance vectors
         run: python3 scripts/validate_conformance_vectors.py
 
+      - name: Validate domain separators
+        run: python3 scripts/validate_domain_separators.py
+
       - name: Validate documentation links
         run: python3 scripts/validate-docs.py
 

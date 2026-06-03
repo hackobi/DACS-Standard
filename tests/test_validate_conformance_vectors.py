@@ -53,6 +53,8 @@ class ConformanceVectorValidationTests(unittest.TestCase):
         text = INDEX.read_text()
         self.assertIn("python3 scripts/validate_conformance_vectors.py", text)
         self.assertIn("dacs-v0.1-happy-path.json", text)
+        self.assertIn("excluded from the canonical", text)
+        self.assertIn("conformance/fixtures/", text)
 
     def test_remaining_core_artifact_examples_are_machine_readable(self):
         for path, expected_kind in [
