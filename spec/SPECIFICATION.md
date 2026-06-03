@@ -2581,6 +2581,8 @@ type EntitlementRecord = {
 
   scope: { service: string; tier?: string; quotas?: Record<string, number> }
 
+  serviceEndpoint?: string             // URL where the grantee exercises the entitlement; SHOULD be present for callable services so the record is a self-contained receipt
+
   renewable: boolean
 
   renewalSeq: number                   // 0 for the original grant; incremented per renewal (address discriminator)
@@ -2590,7 +2592,7 @@ type EntitlementRecord = {
 }
 ```
 
-Seller signs the EntitlementRecord over the domain-separated payload "dacs-entitlement:v1:" || sha256(canonical_JCS(record_without_signature)) per chapter 7§7.7; anchors the EntitlementRecord via SR-2 at dacs4:entitlement:{jobId}:{renewalSeq} (renewalSeq = 0 for the original grant); constructs SettlementEvidence; returns success. Buyer presents the EntitlementRecord (or its hash + anchor) at the service endpoint to access the entitled service. The service endpoint verifies the signature and anchor, checks now is within [startsAt, endsAt], and serves accordingly.
+Seller signs the EntitlementRecord over the domain-separated payload "dacs-entitlement:v1:" || sha256(canonical_JCS(record_without_signature)) per chapter 7§7.7; anchors the EntitlementRecord via SR-2 at dacs4:entitlement:{jobId}:{renewalSeq} (renewalSeq = 0 for the original grant); constructs SettlementEvidence; returns success. Buyer presents the EntitlementRecord (or its hash + anchor) at the record's `serviceEndpoint` to access the entitled service — the record is a self-contained receipt (it names the grantee, the scope, the validity window, and where to exercise it), so the buyer needs nothing beyond the record itself. The service endpoint verifies the signature and anchor, checks now is within [startsAt, endsAt], and serves accordingly. `serviceEndpoint` carries *where* to access; how an access **credential / token** is delivered (vs. presenting the record itself as the bearer proof) is an out-of-band auth concern not specified in v0.1 — see roadmap.
 **Renewal.** If renewable: true and the buyer re-pays before endsAt, the seller MAY issue a new EntitlementRecord with extended endsAt, the same jobId, and an **incremented renewalSeq**, anchored at dacs4:entitlement:{jobId}:{renewalSeq}. The renewalSeq discriminator gives each renewal a distinct SR-2 address so it does not collide with or overwrite the original grant (the address is otherwise fully determined by jobId on immutable content-addressed storage). A consumer resolves the current grant by reading the highest renewalSeq present for the jobId.
 
 #### 9.6.3 deliver-attested-payload
