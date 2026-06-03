@@ -1,0 +1,44 @@
+name: Spec defect
+about: Report a normative inconsistency, undefined value, or implementation-blocking spec defect.
+title: "Spec defect: "
+labels: ["spec-defect"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a high-signal spec defect. Please name the section, artifact / file path, and alternate interpretation or proposed fix from CONTRIBUTING.md.
+  - type: input
+    id: section
+    attributes:
+      label: Specification section
+      description: "Example: §7.7.1 or spec/SPECIFICATION.md#77-universal-signature-scheme--domain-separated-signing"
+      placeholder: "§"
+    validations:
+      required: true
+  - type: input
+    id: artifact
+    attributes:
+      label: Artifact or file path
+      description: Name the affected DACS artifact or repository path.
+      placeholder: "IdentityBundle / spec/SPECIFICATION.md"
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed defect
+      description: What is inconsistent, undefined, or impossible to implement?
+    validations:
+      required: true
+  - type: textarea
+    id: alternate
+    attributes:
+      label: Alternate interpretation or proposed fix
+      description: What should the text mean or say instead?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Implementation evidence
+      description: Link code, traces, vectors, or other supporting material if available.

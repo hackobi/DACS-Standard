@@ -1,0 +1,38 @@
+{
+  "kind": "IdentityBundle",
+  "dacsVersion": "0.1",
+  "specRefs": [
+    "§6.3.2",
+    "§14.1"
+  ],
+  "artifact": {
+    "bundleVersion": "1",
+    "presentedBy": "did:demos:agent:alice-data-agent",
+    "presentedAt": 1780358400000,
+    "claims": [
+      {
+        "ref": "did:demos:agent:alice-data-agent",
+        "metadata": {
+          "displayName": "Alice Data Agent"
+        }
+      },
+      {
+        "ref": "web2:domain:alice.example",
+        "verifiedBy": {
+          "kind": "sr2",
+          "anchor": {
+            "locator": "stor-example-verify-result"
+          },
+          "contentHash": "sha256:ff46000b39c3ba775d1ea728456246c9e6716f3bf18f30a5a4b58c210daecd01"
+        },
+        "issuedAt": 1780358400000,
+        "expiresAt": 1780963200000
+      }
+    ],
+    "presentation": {
+      "kind": "session-key",
+      "key": "did:key:z6MkAliceSessionKeyExample",
+      "signature": "sig:example-session-key-signature"
+    }
+  }
+}

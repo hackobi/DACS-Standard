@@ -445,7 +445,7 @@ type PresentationSignature =
   | { kind: "sr1-root"; rootClaim: ClaimReference; aggregateSignature: string }
 ```
 
-SIWD is the preferred presentation. The siwd shape matches the return of provider.request({ method: "wallet_signIn", params: […] }) on the Demos wallet — { message, signature, address } — and is the same EIP-4361-style envelope. Verifiers MUST validate the SIWD signature against the bundle’s primary claim’s key.
+SIWD is the preferred presentation. The siwd shape matches the return of provider.request({ method: "wallet_signIn", params: […] }) on the Demos wallet — { message, signature, address } — and is the same EIP-4361-style envelope. Verifiers MUST validate the SIWD signature against the **Demos wallet's signing key** (the wallet that produced `wallet_signIn`). The bundle's primary claim MAY be on any chain (EVM, Solana, …) — it is bound to that wallet through the wallet's verified **CCI / SR-1 cross-chain identity link**, NOT by requiring the primary claim itself to produce the EIP-4361 signature. A verifier MUST confirm the wallet controls the primary claim via that CCI/SR-1 link (the Demos wallet is the identity root that holds the per-chain claims). A primary claim with no CCI link to a SIWD-capable wallet MUST use the `per-claim` or `sr1-root` presentation instead.
 **sr1-root presentation.** When SR-1 cross-substrate identity aggregation is available, a single root key may co-sign every claim in the bundle under an SR-1 aggregate signature, producing one signature that covers the whole bundle. rootClaim names the SR-1 root identity (a CCI primary claim on Demos); aggregateSignature is the SR-1 aggregate signature over the domain-separated payload (§6.3.2 below). Verifiers MUST resolve the root key via SR-1 and verify the aggregate signature against the bundle hash. sr1-root is the natural presentation for a party self-binding a single document (a seller signing their own listing, an orchestrator binding multiple per-substrate addresses under one identity) because it avoids the per-claim signature overhead and produces one cryptographic artifact that the rest of the stack can reason about.
 **Domain-separated payload.** All four presentation kinds sign the same canonical payload:
 signed_bytes := "dacs-bundle-presentation:v1:" || bundle_hash
@@ -873,6 +873,10 @@ GET /api/dacs/listings
 
     priceMax=<decimal>                 # advisory; uses summary.priceHint
 
+    minCompletionRate=<float>          # advisory; filters on reputationHint.completionRate when present
+
+    minRating=<float>                  # advisory; filters on reputationHint.averageSellerRating when present
+
     cursor=<opaque>                    # pagination
 
     limit=<int, default 50, max 200>
@@ -921,6 +925,43 @@ type ListingSummary = {
   status: "active" | "revoked"
 
   catalogObservedAt: number
+
+  // Optional: catalog-computed reputation snapshot for this seller in the listing's category.
+  // Derived from the seller's DACS-5 bundles scoped to offerings.category using the
+  // category-scoped derivation algorithm in §10.5.4. When present, consumers MAY use this
+  // as a lightweight pre-filter; they MUST NOT treat it as authoritative without deriving
+  // reputation themselves from the underlying bundles (§10.5.3 computation surfaces).
+  reputationHint?: ReputationHint
+
+}
+
+// Lightweight reputation snapshot attached to a ListingSummary.
+// Scoped to the listing's offering.category prefix (e.g. "data.finance")
+// so buyers see reputation for relevant transaction types, not overall lifetime metrics.
+
+type ReputationHint = {
+
+  // The category scope used to filter the bundles for this derivation
+  // (MUST equal or be a prefix of the listing's offering.category).
+  categoryScope: string
+
+  // Completion rate in [0, 1] across bundles scoped to categoryScope;
+  // null when no qualifying bundles exist (same semantics as ReputationDerivation.metrics.completionRate).
+  completionRate: number | null
+
+  // Average seller rating across bundles scoped to categoryScope; null when none.
+  averageSellerRating: number | null
+
+  // Number of bundles in the derivation window that contributed to this hint.
+  bundleCount: number
+
+  // The DACS-5 derivation window applied (unix ms).
+  windowStart: number
+  windowEnd: number
+
+  // When the catalog last computed this hint. Consumers SHOULD treat hints older
+  // than 24 hours as stale and fall back to deriving reputation themselves.
+  computedAt: number
 
 }
 ```
@@ -1019,7 +1060,7 @@ type VCMethodInput = {
 }
 ```
 
-**Procedure.** Verifier parses the presentation; verifies the VC signature against the issuer key (resolved per VC method); if issuerAllowList is set, MUST reject if the VC issuer is not in the list; verifies the VC has not expired and is not revoked (via status list, if present); verifies the VC’s subject identifier matches the claim’s identifier canonically; anchors the VC (or its hash, if VC is private) via SR-2; extracts structured data per recipe.parserRules; returns VerifyResult with pass if all steps succeed, fail on signature/expiry/revocation failures, indeterminate on parser errors. **Trust model:** issuer; W3C VC spec; key resolution method (e.g. did:web). **Substrate:** SR-2.
+**Procedure.** Verifier parses the presentation; verifies the VC signature against the issuer key (resolved per VC method); if issuerAllowList is set, MUST reject if the VC issuer is not in the list; verifies the VC has not expired and is not revoked (via status list, if present); verifies the VC’s subject identifier matches the claim’s identifier canonically; **verifies the VerifiablePresentation's holder-binding proof — the presentation MUST be signed by the key controlling the credential subject (the holder), over a challenge that includes the session nonce (the bundle/DACS-3 `sessionNonce`); MUST reject if the holder proof is absent or does not verify** (without this, a verified VC captured from one party could be replayed by a non-holder, or re-presented across sessions — verifying the VC's issuer signature alone proves the credential is genuine, not that the presenter holds it); anchors the VC (or its hash, if VC is private) via SR-2; extracts structured data per recipe.parserRules; returns VerifyResult with pass if all steps succeed, fail on signature/expiry/revocation/holder-binding failures, indeterminate on parser errors. **Trust model:** issuer; W3C VC spec; key resolution method (e.g. did:web). **Substrate:** SR-2.
 
 #### 7.3.3 tlsnotary
 
@@ -1285,7 +1326,7 @@ type ParserSpec =
 **ParserSpec semantics (normative).** Given the attested response body, a verifier applies the recipe’s ParserSpec to produce a decision and an optional extracted-data map:
 
 - (PSP-1) **successJsonPath / successSelector / successXPath / matcher** is the *match predicate*. For `json`, it is a JSONPath that MUST select at least one node for a match; for `html`, a CSS selector that MUST select at least one element; for `xml`, an XPath that MUST select at least one node; for `raw`, `matcher` is a regular expression (RE2 syntax, no backreferences) that MUST find at least one match in the body.
-- (PSP-2) **Decision mapping.** If the body parses in the declared format AND the match predicate matches → the method’s positive outcome (`pass` for a positive-match scheme such as `lei`; `fail` for a negative-match scheme such as `ofac-clear`, where a match means "listed"; the recipe’s `negativeMatch: true` flag selects this inversion). If the body parses but the predicate does not match → the negative outcome (`fail`, or `pass` for a negative-match scheme). If the body does NOT parse in the declared format (malformed JSON/HTML/XML, parser exception) → `error` (verifier-side failure to obtain a decision), never `fail`. A response the authority returns to signal "no conclusive answer" (e.g. an explicit pending/partial-record marker the recipe lists in `indeterminateOn`) → `indeterminate`. The `indeterminateOn` predicates, when present, are evaluated against the parsed body BEFORE the match predicate; if any of them matches, the decision is `indeterminate` and the match predicate is not applied. Each predicate uses the expression kind appropriate to the declared `format` (`jsonPath` for `json`, `selector` for `html`, `xPath` for `xml`, `matcher` for `raw`).
+- (PSP-2) **Decision mapping.** If the body parses in the declared format AND the match predicate matches → the method’s positive outcome (`pass` for a positive-match scheme such as `lei`; `fail` for a negative-match scheme such as `ofac-clear`, where a match means "listed"; the recipe’s `negativeMatch: true` flag selects this inversion). If the body parses but the predicate does not match → the negative outcome (`fail`, or `pass` for a negative-match scheme). If the body does NOT parse in the declared format (malformed JSON/HTML/XML, parser exception) → `error` (verifier-side failure to obtain a decision), never `fail`. A response the authority returns to signal "no conclusive answer" (e.g. an explicit pending/partial-record marker the recipe lists in `indeterminateOn`) → `indeterminate`. The `indeterminateOn` predicates, when present, are evaluated against the parsed body BEFORE the match predicate; if any of them matches, the decision is `indeterminate` and the match predicate is not applied. Each predicate uses the expression kind appropriate to the declared `format` (`jsonPath` for `json`, `selector` for `html`, `xPath` for `xml`, `matcher` for `raw`). (PSP-5) **Negative-match completeness floor.** For a negative-match scheme whose decision rests on the *absence* of the identifier in a full-list download (e.g. `ofac-clear` over SDN.XML), the verifier MUST confirm the response is **complete** before returning the negative (`pass` = "not listed") outcome: it MUST check the received response against a completeness signal — the authority's declared record-count / list-size field, a documented end-of-list sentinel, or the HTTP `Content-Length` matching the received byte count — and MUST NOT return `pass` on a response that is truncated, partial, or whose completeness cannot be confirmed (→ `indeterminate`). A truncated-but-parseable SDN download in which the searched entity merely fell outside the received bytes would otherwise clear a sanctioned party; absence MUST be trusted only over a provably-complete response. PSP-5 applies to any `negativeMatch: true` recipe whose match predicate is "identifier not found in a downloaded list".
 - (PSP-3) **dataMap** maps output field names to JSONPath/selector/XPath expressions evaluated against the same body; each resolved value is recorded in the VerifyResult’s extracted data for audit. A `dataMap` expression that resolves to nothing is recorded as null and MUST NOT by itself change the decision.
 - (PSP-4) Parser evaluation MUST be deterministic and MUST NOT execute scripts, fetch sub-resources, or follow redirects embedded in the body.
 
@@ -1344,7 +1385,7 @@ A verifier MUST resolve a recipe by: reading the recipe-registry index from dacs
 **Current steward (v0.1).** The DACS-2 recipe registry is currently maintained by **KyneSys Labs** as the v0.1 steward. This is a single-signer arrangement (phase PA-2 per the progressive-anchoring scheme below). Wider governance — working-group constitution, multi-signature schemes, sub-authority delegation by domain (sanctions lists, financial regulation, etc.) — is open work for v0.2+ and depends on the eventual constitution of a multi-party body. v0.1 implementations and consumers reason about the registry under single-steward semantics: one signing key, one anchoring authority, full transparency about both.
 **Emergency recipe updates.** When an authority endpoint becomes unavailable or returns materially-incompatible data, the steward MAY publish an emergency recipe revision. Emergency revisions MUST: be signed normally; include an emergency: true field in the governance block; cite the failure observation (URL of authority change announcement, observed response format diff). Emergency revisions take effect at next session start; in-flight sessions continue against pinned recipeVersion.
 **Recipe deprecation.** A recipe MAY be marked deprecated by publishing a new revision with deprecated: true and a deprecationReason. Verifiers MUST NOT initiate new sessions using deprecated recipes for required claims; in-flight sessions continue. A deprecated recipe with no replacement leaves the scheme un-verifiable; this is a v0.2 strengthening target for any scheme that hits this condition.
-**Progressive anchoring phases.** Recipe anchoring proceeds through three phases. (PA-1) **Bootstrap phase.** Implementations MAY ship recipes as in-code constants or static configuration. Recipes in this phase MUST be marked anchoring: "in-code" and MUST NOT be presented as canonically anchored. (PA-2) **Single-steward phase.** The steward (currently KyneSys Labs) anchors recipes at the canonical address under a single signature, marked anchoring: "single-signer" and disclosing the steward’s identity. This is the current operating phase for v0.1. (PA-3) **Constituted phase.** If and when a multi-party governance body is constituted, recipes anchor under that body’s multi-signature scheme. Re-anchoring is append-only: prior single-signer recipeVersions MUST remain anchored, immutable, and independently re-verifiable under the steward key and content hash recorded during the single-signer phase (PA-2). The constituted body re-anchors prior recipes only as NEW recipeVersions under its multi-signature scheme; it MUST NOT mutate the signer or content hash of an already-published recipeVersion. This preserves the monotonic recipe-version pinning that §7.12 and §12.4 depend on: a VerifyResult pinned to a recipeVersion during PA-2 MUST continue to validate against the anchoring phase and signing key in force at pin time, not the current registry state. Implementations MUST clearly disclose which phase they operate in; consumers reading a VerifyResult MUST verify the recipe’s anchoring phase against their own trust requirements, evaluating each pinned recipeVersion against the phase recorded at the time it was anchored.
+**Progressive anchoring phases.** Recipe anchoring proceeds through three phases. (PA-1) **Bootstrap phase.** Implementations MAY ship recipes as in-code constants or static configuration. Recipes in this phase MUST be marked anchoring: "in-code" and MUST NOT be presented as canonically anchored. (PA-2) **Single-steward phase.** The steward (currently KyneSys Labs) anchors recipes at the canonical address under a single signature, marked anchoring: "single-signer" and disclosing the steward’s identity. This is the current operating phase for v0.1. (PA-3) **Constituted phase.** If and when a multi-party governance body is constituted, recipes anchor under that body’s multi-signature scheme. Re-anchoring is append-only: prior single-signer recipeVersions MUST remain anchored, immutable, and independently re-verifiable under the steward key and content hash recorded during the single-signer phase (PA-2). The constituted body re-anchors prior recipes only as NEW recipeVersions under its multi-signature scheme; it MUST NOT mutate the signer or content hash of an already-published recipeVersion. This preserves the monotonic recipe-version pinning that §7.12 and §12.4 depend on: a VerifyResult pinned to a recipeVersion during PA-2 MUST continue to validate against the anchoring phase and signing key in force at pin time, not the current registry state. **(GOV-2)** Implementations MUST clearly disclose which phase they operate in; **(GOV-3)** consumers reading a VerifyResult MUST verify the recipe’s anchoring phase against their own trust requirements, evaluating each pinned recipeVersion against the phase recorded at the time it was anchored. GOV-3 is satisfiable from the data the protocol exposes: the consumer already resolves the recipe to verify a VerifyResult (§7.4.3), and the resolved Recipe carries `governance.anchoring` (`in-code` / `single-signer` / `multisig`, §7.4.1) — that field is the machine-readable anchoring phase GOV-3 checks.
 
 #### 7.4.5 Recipe availability (normative)
 
@@ -1413,6 +1454,7 @@ type AttestationRef = {
 Canonical form is RFC 8785 JCS of the VerifyResult with the signature field omitted. The VerifyResult hash is sha256(canonical_form), hex-encoded. The signature is computed over the domain-separated payload per chapter 7§7.7:
 signed_bytes := "dacs-verifyresult:v1:" || verifyresult_hash
 **Validator-set claim references.** When AttestationRef.signer designates the producer of a consensus-backed-proxy or evm-rpc attestation, the ClaimReference MUST use the substrate-validator-set scheme: substrate-validator-set:<substrateId>:<epochOrSetId>. <substrateId> is a registered substrate identifier (v0.1 registry: "demos-mainnet", "demos-testnet"; future substrates added by the registry steward). <epochOrSetId> identifies the specific validator set that signed the attestation (Demos uses epoch numbers; substrates using rotating sets use whatever identifier the substrate exposes). Consumers MUST resolve the validator-set reference to the substrate’s published validator-set roster for that epoch and verify the attestation signature against the aggregate of those validators’ keys per the substrate’s consensus protocol. Substrates whose validator-set rosters are not publicly resolvable MUST NOT be used as the signer of a VerifyResult intended for cross-substrate consumption.
+**Public-anchor data minimisation (normative).** A VerifyResult is anchored at a publicly-derivable address (§7.3.1 CM-2) in cleartext, so its `data` field is world-readable. Therefore `data` in a publicly-anchored VerifyResult MUST carry **only predicate outcomes** — the booleans / derived facts the recipe's match needs (e.g. `{ overEighteen: true }`, `{ sanctioned: false }`, `{ kycTier: "enhanced" }`) — and MUST NOT carry raw extracted personal or financial fields (date of birth, account balance, document numbers, full authority-record contents). This is load-bearing for privacy-preserving methods: a `tlsnotary` or `zktls` recipe exists precisely to prove a fact without revealing the underlying value, and copying that value into a cleartext public anchor would defeat the method. A recipe whose `parserRules` would extract sensitive raw fields MUST reduce them to predicate outcomes before they enter an unencrypted anchored `data`. (Carrying the raw fields is only permissible under the encrypted-to-parties anchoring mode that is roadmap work — see §12.1.) The exposure of `scheme`, `identifier`, and `decision` themselves is accepted by design per §12.1.
 
 #### 7.5.1 Decision values and semantics
 
@@ -1636,9 +1678,11 @@ The orchestrator MUST: (VPC-1) invoke vet-credentials after a successful Identif
 | Error class | Cause | Retry? |
 | --- | --- | --- |
 | transient | Substrate temporarily unavailable; authority HTTP 5xx | Yes (per VP-R1) |
-| permanent | Required claim fails; bundle malformed | No |
-| counterparty | Counterparty fails to present required deal-specific claim | No (Vet fails; counterparty marked at-fault) |
+| permanent | Bundle malformed/unparseable; or `indeterminate`/`error` after retry-budget exhaustion (per recipe.retryClass) | No |
+| counterparty | Counterparty fails to present a required claim, OR a required claim returns `decision=fail` (the authority conclusively rejected the counterparty's claim) | No (Vet fails; counterparty marked at-fault) |
 | substrate | SR-2 or SR-3 unavailable for sustained period | Pause session per DACS-5 |
+
+**VPC-4 is the authoritative cause→class mapping; this table enumerates causes consistent with it, not an independent rule.** A required claim returning `decision=fail` maps to **counterparty** (per VPC-4: `"fail" → counterparty`) — it is the counterparty's claim that the authority rejected, so it is never `permanent`. `permanent` is reserved for structural failures (a malformed/unparseable bundle) and for `indeterminate`/`error` outcomes that exhaust their retry budget. Because the class is fully determined by the decision/cause, an orchestrator has no discretion to steer a self-caused `fail` away from the counterparty fault bucket (§10.5.1).
 
 Re-running vet-credentials with the same inputs MUST produce the same composite-record content (modulo timestamps in supplementary signals refreshed against current state). The orchestrator MUST NOT double-anchor; on retry, the existing anchor MUST be reused if its content has not changed.
 
@@ -1676,7 +1720,7 @@ Re-running vet-credentials with the same inputs MUST produce the same composite-
 **Recipe poisoning.** *Threat:* a compromised recipe registry returns incorrect parsing rules, causing every verification using that recipe to mis-classify outcomes. *Mitigation:* recipes are signed by the registry steward (currently KyneSys Labs, per §7.4.4); consumers MUST verify the signature. Recipe recipeVersion is monotonic and pinned per session; an attacker compromising the registry tomorrow does not retroactively change recipes used in already-pinned sessions. Steward-key compromise is the principal residual risk under the current PA-2 single-signer phase; multi-signature governance (PA-3) is the v0.2+ mitigation pathway.
 **Replay of VerifyResult across sessions.** *Threat:* a verifier reuses a stale VerifyResult from a different session or a different counterparty. *Mitigation:* the VerifyResult.identifier MUST match the claim under verification canonically; consumers verify the match. The composite record’s bundleHash and evaluatedParty bind the verification to a specific bundle. Cross-session reuse within validUntil is explicitly permitted and is safe because the result still verifies against the same identifier.
 **TOCTOU: authority state changes between fetch and use.** *Threat:* a counterparty’s authority status changes between Vet and the actual transaction execution. *Mitigation:* listings handling time-sensitive flows SHOULD set ClaimRequirement.maxAge aggressively (e.g., 60 seconds for OFAC clearance on a real-money trade). Sessions with long latency between Vet and Settle SHOULD re-run Vet at Settle time for the most stake-sensitive claims.
-**Substrate validator capture (SR-3).** *Threat:* a majority-corrupt substrate validator set forges responses, causing consensus-backed-proxy and evm-rpc methods to attest to false facts. *Mitigation:* the substrate’s consensus model is the trust floor; DACS-2 inherits whatever security properties the substrate provides. For credentials where this risk is unacceptable, recipes SHOULD declare multi-method alternatives — e.g., consensus-backed-proxy AND tlsnotary AND zktls, with the recipe requiring all (or a majority) to pass. The composite verification record’s aggregation algorithm supports this via multiple VerifyResults for the same claim; readers MUST honour the recipe’s requireAll flag when set.
+**Substrate validator capture (SR-3).** *Threat:* a majority-corrupt substrate validator set forges responses, causing consensus-backed-proxy and evm-rpc methods to attest to false facts. *Mitigation:* the substrate’s consensus model is the trust floor; DACS-2 inherits whatever security properties the substrate provides. For credentials where this risk is unacceptable, recipes SHOULD declare **alternative independent methods** (the recipe `alternatives` mechanism, §7.4) so a high-stakes claim can additionally be verified by an independent method (e.g. tlsnotary or zktls) rather than relying on consensus-backed-proxy alone. Note the scope of what v0.1 composes: **cross-claim AND** — a listing requiring several distinct verified claims, all of which MUST pass — is already enforced (§6.3.3 `BundleRequirement.required`, "all MUST be satisfied"), and is how a real vet stacks GLEIF + OFAC + reputation. What v0.1 does **not** define is a single-claim multi-method-**AND** combinator (verifying the *same* claim by two methods that MUST both pass): §7.7.1 aggregation composes multiple VerifyResults for one claim but has no `requireAll` semantics, and no such flag is defined on the Recipe. Single-claim multi-method-AND is a roadmap item; v0.1 high-stakes recipes use alternatives (additional independent methods) plus cross-claim required-set AND.
 **W3C VC issuer compromise.** *Threat:* the signing key of a VC issuer is compromised, causing all VCs signed by that issuer to be untrustworthy. *Mitigation:* recipes SHOULD set issuerAllowList and check issuer revocation registries (where available, e.g., W3C VC Status List 2021). Issuers SHOULD rotate keys regularly. Consumers of historical VerifyResults SHOULD check whether the issuer was known-compromised at the time of verification.
 **TLSNotary notary collusion.** *Threat:* the notary colludes with the prover to attest to false TLS sessions. *Mitigation:* TLSNotary’s MPC ensures the notary cannot see plaintext but does require honesty about the commitment. Recipes using tlsnotary SHOULD specify a known-good notary public key in the recipe; multi-notary patterns are a future extension.
 **zkTLS proxy compromise.** *Threat:* the zkTLS provider’s proxy attests to false TLS responses. *Mitigation:* recipes select specific providers and program IDs. Compromise of a provider’s proxy invalidates all results from that provider; consumers SHOULD treat results from a known-compromised provider as invalid retroactively.
@@ -1702,7 +1746,7 @@ Negotiation contents stay between the participants. The public chain receives on
 
 ### 8.2 Motivation
 
-Negotiation is the stage in which commerce most consistently breaks open standards. Identity, payment, and capability discovery can run on public infrastructure with little privacy cost. Pricing, term-sheet drafts, sealed-bid submissions, and RFQ counter-offers cannot — they involve material non-public information, competitive pricing, or simply discussions whose contents would harm the participants if exposed.
+Negotiation is the stage in which commerce most consistently breaks open standards. Identity, payment, and capability discovery can run on public infrastructure with little privacy cost for their *contents* — though the durable identities they bind remain visible at the public audit layer, an accepted accountability-over-privacy tradeoff (§12.1). Pricing, term-sheet drafts, sealed-bid submissions, and RFQ counter-offers cannot — they involve material non-public information, competitive pricing, or simply discussions whose contents would harm the participants if exposed.
 A buyer agent today can issue an RFQ to three sellers via public channels, but the public visibility of the request, the counters, and the timing telegraphs market information that institutional desks specifically pay to keep private. Sealed-bid government procurement cannot run on a public mempool. Pre-trade negotiation in regulated markets is bound by MNPI rules that public-chain visibility violates.
 DACS-3 closes this gap by separating two concerns that have historically been fused:
 
@@ -1734,7 +1778,7 @@ Other substrates MAY implement SR-4 via TEE-based confidential channels, zk-base
 ```
 type ChannelMessage = {
 
-  channelId: string                    // substrate-derived; opaque to DACS-3
+  channelId: string                    // substrate-derived; opaque to DACS-3; MUST be unique per session (see CH-6)
 
   sequence: number                     // monotonic per channel, starts at 1
 
@@ -1996,6 +2040,11 @@ type AgreementDocument = {
 
     deadline: number                   // unix ms; settle-by deadline
 
+    // Optional DAHR-attested reference price snapshot both parties sign against.
+    // When present, both parties attest that price was determined relative to this anchor.
+    // Does not replace or constrain terms.price — it is an informational audit record.
+    priceAnchor?: PriceAnchor
+
     additionalTerms?: Record<string, unknown>
 
   }
@@ -2048,6 +2097,40 @@ type CompetitiveContext = {
 
 // AgreementDocument.terms.additionalTerms MAY include "competitiveContext: CompetitiveContext".
 
+// Optional: SR-3-attested reference price snapshot included in the agreement for audit purposes.
+// Both parties sign the AgreementDocument (including priceAnchor when present), so the snapshot
+// becomes part of the agreement's content hash and cannot be altered after commitment.
+//
+// priceAnchor does NOT constrain terms.price — the agreed price may differ from the snapshot
+// (e.g. due to negotiation, markup, or discount). Its purpose is to provide an auditable,
+// consensus-backed reference point for price-discovery analysis and dispute context.
+
+type PriceAnchor = {
+
+  // The asset whose price is being snapshotted (e.g. "BTC", "ETH", "SOL").
+  asset: string
+
+  // The currency in which the price is expressed (e.g. "USD", "USDC").
+  quoteCurrency: string
+
+  // The price at snapshot time, in CD-1 canonical decimal form.
+  price: string
+
+  // The SR-3 DAHR attestation that produced this price snapshot.
+  // attestationRef.anchor points to the on-chain commitment of the fetch;
+  // attestationRef.contentHash is sha256 of the raw response body bytes.
+  attestationRef: AttestationRef
+
+  // The unix ms timestamp at which the SR-3 fetch was performed.
+  // SHOULD match the timestamp in the DAHR on-chain commitment record.
+  observedAt: number
+
+  // The URL template used to fetch the price (e.g. exchange API endpoint).
+  // Included so consumers can independently verify the data source.
+  sourceUrl: string
+
+}
+
 type AgreementSignature = {
 
   party: ClaimReference
@@ -2064,6 +2147,8 @@ type AgreementSignature = {
 The agreement’s canonical form is the RFC 8785 JCS serialisation with the signatures field omitted. **Rule CD-1 (canonical decimal).** Because RFC 8785 JCS canonicalises JSON numbers but preserves string bytes verbatim, every `PriceTerm.amount` string MUST be in minimal-digit canonical decimal form: no leading zeros (except a single `0` before the decimal point), no trailing zeros after the decimal point, `.` as the only separator, no `+` sign, and no exponent. Producers MUST canonicalise `amount` per CD-1 before computing any agreement hash, `SettlementEvidence` hash, or other JCS hash; verifiers MUST canonicalise `amount` per CD-1 before the §8.5.2 price-band and price-equality comparisons. Two parties formatting the same economic value differently (e.g. `"1.50"` vs `"1.5"`) MUST therefore reproduce identical canonical bytes, hashes, and signatures. The agreement hash is sha256(canonical_form), hex-encoded. Each AgreementSignature.value is computed over the domain-separated payload per chapter 7§7.7:
 signed_bytes := "dacs-agreement:v1:" || agreement_hash
 Verifiers MUST recompute the canonical form, agreement hash, and domain-separated payload, and for each required party, resolve the primary claim’s key (per DACS-2 verification) and verify the signature. Required signers: negotiate-fixed-price — buyer + seller (seller signature may be an auto-accept instance signature per §8.4.1); negotiate-rfq — buyer + seller; negotiate-sealed-envelope — seller + winning bidder (non-winning bidders’ signatures are not required).
+
+**`priceAnchor` canonical-form note.** When `terms.priceAnchor` is present, it is included in the JCS canonical form (the same as any other field in `terms`) and therefore covered by both parties’ signatures. `priceAnchor.price` MUST be in CD-1 canonical decimal form. Verifiers that do not understand `priceAnchor` MUST NOT reject the agreement on that basis — the field is optional and non-normative for agreement validity; it is informational.
 
 #### 8.5.2 Listing conformance validation
 
@@ -2201,7 +2286,7 @@ A DACS-1 listing’s pipeline declares which negotiation pattern is used. Each P
 
 **Channel-operator censorship.** *Threat:* the SR-4 channel operator drops messages, preventing a party from responding within the timeout. *Mitigation:* CH-4 mandates liveness detection. Members observing missed deliveries (no acknowledgement from a quorum) MUST treat the channel as failed. On Demos, Private Negotiation provides per-message acknowledgements; equivalent SR-4 implementations on other substrates SHOULD do the same.
 **Channel-operator forking.** *Threat:* the channel operator shows different views to different members, creating mutual misunderstanding. *Mitigation:* channel message envelopes carry monotonic sequence numbers and signatures; members SHOULD periodically exchange "current state" attestations and detect forks. SR-4 implementations are expected to provide a tamper-evident message log.
-**Replay of offers across sessions.** *Threat:* an attacker captures a signed offer from session A and replays it in session B. *Mitigation:* the channel message envelope includes channelId (substrate-unique per session) and sequence (per-channel monotonic). An offer message replayed into a different channel fails signature verification because the channel id differs; replayed in the same channel it duplicates a sequence number and is rejected.
+**Replay of offers across sessions.** *Threat:* an attacker captures a signed offer from session A and replays it in session B. *Mitigation:* the channel message envelope includes channelId and sequence (per-channel monotonic). This defence holds only if channelId is unique per session: **(CH-6) channelId MUST be unique per session** — the substrate MUST derive a per-session-unique channelId, and an orchestrator MUST reject a session that reuses a channelId from a prior session. (Without CH-6 the replay defence is vacuous: a reused channelId would let a session-A offer verify in session B.) Given CH-6, an offer replayed into a different channel fails signature verification because the channelId differs; replayed in the same channel it duplicates a sequence number and is rejected.
 **Signature stripping or rebinding between channel and agreement.** *Threat:* an attacker takes a signature produced inside the channel and reuses it on a different agreement document. *Mitigation:* channel-message signatures are over the message envelope (including channelId); agreement-document signatures are over the agreement hash (which includes jobId, listingRef, and all terms). The two scopes are non-overlapping; a channel signature does not validate as an agreement signature.
 **Sealed-envelope front-running.** *Threat:* a bidder learns competitors’ bids before reveal. *Mitigation:* bids stay encrypted in the channel until reveal; only the bid hash is public. The channel’s confidentiality ensures non-members cannot read pre-reveal bids; the cryptographic commitment ensures the bidder cannot change their bid after observing competitors at reveal time. Operators SHOULD use SR-4 implementations with member-exclusive encryption.
 **Sealed-envelope post-deadline submission.** *Threat:* a bidder submits a commit after commitDeadline, claiming clock skew. *Mitigation:* SE-2 mandates the commit’s public-chain anchor timestamp (objective, substrate-determined) be ≤ commitDeadline. Clock skew at the bidder is irrelevant; the chain decides the timestamp.
@@ -2459,7 +2544,7 @@ Every RailDefinition MUST declare an availability value, with the same value set
 - **disabled** — rail exists in the registry but the steward has marked it not-for-use. Orchestrators MUST NOT initiate new sessions selecting disabled rails; in-flight sessions continue.
 - **failed** — rail’s underlying network or asset path is currently broken (chain congestion preventing settlement, asset contract paused, bridge offline).
 
-**Orchestrator obligations.** (RAV-R1) An orchestrator MUST inspect rail availability before selecting a rail for a session. (RAV-R2) An orchestrator MUST NOT select rails with availability values disabled or failed. (RAV-R3) An orchestrator MAY select rails with availability values operator_gated, closed_data, or bilateral only if the relevant operator-side configuration is in place; this is a runtime preflight check, not a static property of the rail. (RAV-R4) A rail's `availability` is pinned at session start (§9.13), so a mid-session availability *flip* is not observable from the pinned definition. RAV-R4 therefore binds at the point of use: if a settlement attempt on the pinned rail fails because the rail is non-operational — a rail-down / substrate failure, distinct from a transient RPC hiccup or a counterparty error — the orchestrator MUST classify the failure errorClass = substrate (rail is non-operational), not counterparty. A proactive out-of-band rail-liveness probe that lets an orchestrator detect failure *before* attempting settlement (mirroring the §8.12 CH-4 channel-liveness probe) is a roadmap item; v0.1 detects rail failure at the settlement attempt.
+**Orchestrator obligations.** (RAV-R1) An orchestrator MUST inspect rail availability before selecting a rail for a session. (RAV-R2) An orchestrator MUST NOT select rails with availability values disabled or failed. (RAV-R3) An orchestrator MAY select rails with availability values operator_gated, closed_data, or bilateral only if the relevant operator-side configuration is in place; this is a runtime preflight check, not a static property of the rail. (RAV-R4) A rail's `availability` is pinned at session start (§9.13), so a mid-session availability *flip* is not observable from the pinned definition. RAV-R4 therefore binds at the point of use: if a settlement attempt on the pinned rail fails because the rail is non-operational — a rail-down / substrate failure, distinct from a transient RPC hiccup or a counterparty error — the orchestrator MUST classify the failure errorClass = substrate (rail is non-operational), not counterparty. A proactive out-of-band rail-liveness probe that lets an orchestrator detect failure *before* attempting settlement (mirroring the §8.12 CH-4 channel-liveness probe) is a roadmap item; v0.1 detects rail failure at the settlement attempt. (RAV-R5) **Authoritative availability read.** An orchestrator MUST read `availability` from the authoritative rail definition — the signed/anchored `dacs-rail:v1:` record pinned at session start — NOT from an unauthenticated cache, discovery mirror, or counterparty-supplied copy. This closes availability-field poisoning, where a tampered pre-pin read would steer an orchestrator onto a disabled/failed rail (or away from a live one); the pinned, signed definition is the only trusted source.
 **Steward obligations.** Same as recipe availability (RAV-5, RAV-6, RAV-7 in §7.4.5) applied to rails. The steward maintains availability values current; transitions are signed and anchored revisions; availability is per-rail-version.
 
 ### 9.5 Payment phases
@@ -2468,7 +2553,7 @@ The v0.1 closed set. Each is a PhaseType from chapter 6’s closed enumeration, 
 
 #### 9.5.1 Common contract
 
-Every pay-* phase handler MUST: (PC-1) accept a PaymentPhaseInput conforming to the shape below; (PC-2) produce SettlementEvidence anchored via SR-2 at dacs4:payment:{jobId}:{railId} (or substrate equivalent); (PC-3) return a PhaseHandlerResult with attestationRef pointing to the evidence; (PC-4) classify outcomes as exactly one of ok: true (payment confirmed at the chain’s finality semantics), ok: false with errorClass: "permanent" (refused by chain, insufficient balance, invalid signature), errorClass: "transient" (RPC failure, mempool congestion), errorClass: "counterparty" (AP2 mandate revoked, x402 server refused), errorClass: "substrate" (SR-2 unavailable), or errorClass: "settlement-atomicity" (cross-chain only; lock succeeded on one side, the other side timed out); (PC-5) before settling, verify that `amount.currency` resolves to `rail.asset` and reject a mismatch as `ok: false` with `errorClass: "permanent"`. "Resolves" is defined per AssetSpec kind: for `erc20` and `spl`, `amount.currency` MUST equal `rail.asset.symbol`; for `native-evm` and `native-solana`, `amount.currency` MUST equal `rail.asset.symbol`; for `fiat-via-ap2`, `amount.currency` MUST equal `rail.asset.isoCurrency`; for `stablecoin-cross-chain`, `amount.currency` MUST equal `rail.asset.canonicalSymbol`. Handlers MUST NOT settle a payment whose `amount.currency` does not resolve under this mapping.
+Every pay-* phase handler MUST: (PC-1) accept a PaymentPhaseInput conforming to the shape below; (PC-2) produce SettlementEvidence anchored via SR-2 at dacs4:payment:{jobId}:{railId} (or substrate equivalent); (PC-3) return a PhaseHandlerResult with attestationRef pointing to the evidence; (PC-4) classify outcomes as exactly one of ok: true (payment confirmed at the chain’s finality semantics), ok: false with errorClass: "permanent" (refused by chain, insufficient balance, invalid signature), errorClass: "transient" (RPC failure, mempool congestion), errorClass: "counterparty" (AP2 mandate revoked, x402 server refused), errorClass: "substrate" (SR-2 unavailable), or errorClass: "settlement-atomicity" (cross-chain only; lock succeeded on one side, the other side timed out); (PC-5) before settling, verify that `amount.currency` resolves to `rail.asset` and reject a mismatch as `ok: false` with `errorClass: "permanent"`; (PC-6) when outcome is `success`, populate `settlementFinality` in the produced SettlementEvidence with the finality model and parameters actually applied — the field MUST be present on any `success`-outcome payment evidence record and MUST be absent on delivery evidence records. "Resolves" is defined per AssetSpec kind: for `erc20` and `spl`, `amount.currency` MUST equal `rail.asset.symbol`; for `native-evm` and `native-solana`, `amount.currency` MUST equal `rail.asset.symbol`; for `fiat-via-ap2`, `amount.currency` MUST equal `rail.asset.isoCurrency`; for `stablecoin-cross-chain`, `amount.currency` MUST equal `rail.asset.canonicalSymbol`. Handlers MUST NOT settle a payment whose `amount.currency` does not resolve under this mapping.
 
 ```
 type PaymentPhaseInput = {
@@ -2633,6 +2718,10 @@ type SettlementEvidence = {
 
   attestationRef?: AttestationRef              // for deliver-attested-payload
 
+  // Finality model used for this settlement (optional, payment phases only)
+
+  settlementFinality?: SettlementFinalityRecord
+
   // Optional cross-references
 
   amendmentRefs?: AttestationRef[]             // refunds / partial refunds linked here
@@ -2640,6 +2729,33 @@ type SettlementEvidence = {
   observedAt: number                           // unix ms
 
   signature: ComponentSignature                // signer is the phase orchestrator
+
+}
+
+// Records the finality model applied when the phase handler declared the payment confirmed.
+// Populated by payment phases only (pay-evm-erc20, pay-solana-spl, pay-cross-chain-htlc,
+// pay-cross-chain-liquidity-tank, pay-ap2, pay-x402); delivery phases MUST omit it.
+type SettlementFinalityRecord = {
+
+  model: "block-depth"          // EVM / UTXO: wait for N blocks (finalityBlocks from rail.parameters)
+       | "commitment-level"     // Solana: wait for a named commitment (finalityCommitmentLevel from rail.parameters)
+       | "provider-receipt"     // Fiat (AP2) or x402: provider-issued receipt is the finality signal
+       | "htlc-reveal"          // Cross-chain HTLC: on-chain preimage reveal on both legs
+       | "liquidity-tank"       // Native bridge liquidity-tank: bridge status transitions to "completed"
+
+  // For model == "block-depth": the number of blocks waited before declaring confirmation.
+  // Sourced from rail.parameters.finalityBlocks; echoed here so the evidence record is self-describing.
+  finalityBlocks?: number
+
+  // For model == "commitment-level": the Solana commitment level accepted.
+  // Sourced from rail.parameters.commitmentLevel; echoed here so the evidence record is self-describing.
+  finalityCommitmentLevel?: "processed" | "confirmed" | "finalized"
+
+  // Wall-clock unix ms at which the finality condition was observed to be met.
+  // For block-depth: block timestamp of the Nth confirmation block.
+  // For commitment-level: timestamp at which the commitment level was reached.
+  // For provider-receipt / htlc-reveal / liquidity-tank: timestamp of the decisive event.
+  finalityObservedAt: number
 
 }
 
@@ -2715,7 +2831,7 @@ A listing’s pipeline declares the order of payment and delivery phases. Common
 - **Escrow with delivery-gate** (lock → deliver → release): the v0.1 `pay-cross-chain-htlc` handler is an **atomic swap** (§9.5.4) — it has no mid-lock suspension point, so it cannot run a `deliver-*` phase *between* lock and reveal. An escrow that gates release on delivery is therefore **not expressible in v0.1** and is reserved for a future job-escrow rail (ERC-8183 is the natural home — see roadmap). v0.1 listings needing escrow-like risk shifting use deliver-then-pay or pay-then-deliver with the counterparty risk that implies.
 - **Streamed entitlement / subscription**: a multi-tranche subscription is conceptually a **sequence of independent sessions** — a fresh jobId is a *new session*, not a loop within one pipeline (§7.5/§10.3: one pipeline = one jobId). Continuous-flow / subscription settlement, including any cross-session correlation identifier, is **out of scope for v0.1** (§11.2.4; see roadmap). A v0.1 listing models each tranche as its own session.
 
-**Conformance.** (PIPE-1) A pipeline MUST contain at least one pay-*phase and at least one deliver-* phase. (PIPE-2) Phase ordering MUST be deterministic; the listing’s declared order is normative. (PIPE-3) If a pay-*phase is followed by a deliver-* phase, the deliver-*phase MUST NOT execute until the pay-* phase returns ok: true. (PIPE-4) If a deliver-*phase is followed by a pay-* phase, the pay-*phase MUST NOT execute until the deliver-* phase returns ok: true. (PIPE-5) Pipelines MAY repeat a phase; each invocation produces independent SettlementEvidence. In v0.1 each repeated pay-* invocation settles the **same** agreement price (`PaymentPhaseInput.amount` = `agreement.terms.price`) — the payment contract carries no per-phase amount override, fee, or split, so a **fee-split** (distinct amounts to distinct payees, e.g. buyer + platform fee) is NOT representable in v0.1 and is a roadmap item (fee-split / multi-payee settlement model). Repetition is for genuinely identical settlements, not for splitting one price across payees.
+**Conformance.** (PIPE-1) A pipeline MUST contain at least one deliver-* phase. A pipeline MAY contain **zero** pay-* phases — the **intake-only / settled-out-of-band** pattern that §6.3.4(8) names (RFP intake, reverse auctions where the bid is the commitment, free services gated by reputation, sealed-bid procurements settled out-of-band); if a pipeline contains any pay-* phase, the acceptedRails rule of §6.3.4(8) applies. (This reconciles PIPE-1 with §6.3.4(8): a reader of either chapter reaches the same accept decision for a pay-less pipeline — earlier drafts required at-least-one-pay, contradicting §6.3.4(8).) (PIPE-2) Phase ordering MUST be deterministic; the listing’s declared order is normative. (PIPE-3) If a pay-*phase is followed by a deliver-* phase, the deliver-*phase MUST NOT execute until the pay-* phase returns ok: true. (PIPE-4) If a deliver-*phase is followed by a pay-* phase, the pay-*phase MUST NOT execute until the deliver-* phase returns ok: true. (PIPE-5) Pipelines MAY repeat a phase; each invocation produces independent SettlementEvidence. In v0.1 each repeated pay-* invocation settles the **same** agreement price (`PaymentPhaseInput.amount` = `agreement.terms.price`) — the payment contract carries no per-phase amount override, fee, or split, so a **fee-split** (distinct amounts to distinct payees, e.g. buyer + platform fee) is NOT representable in v0.1 and is a roadmap item (fee-split / multi-payee settlement model). Repetition is for genuinely identical settlements, not for splitting one price across payees.
 
 ### 9.10 Conformance summary
 
@@ -3188,6 +3304,32 @@ The same wallet may hold multiple primary claims (key:…, did:…, lei:…). DA
 
 Derivation MAY be computed: (a) lazily by a querying party (over a set of bundles they fetched themselves — highest trust); (b) by a DACS-5 catalog operator (similar to a DACS-1 catalog — indexed for performance, but consumers MUST verify against the underlying bundles for high-stakes decisions); (c) on chain via an ERC-8004 reputation registry write per §10.7. Each surface is a different point on the trust / performance trade-off; the algorithm is the same.
 
+#### 10.5.4 Category-scoped derivation
+
+The §10.5.1 derivation algorithm is unscoped: it aggregates all bundles for a party within a time window regardless of the service category involved. This is useful for overall reputation but obscures domain-specific track records — a party with excellent DeFi data delivery and a poor regulatory-data track record looks identical to one that is mediocre across the board.
+
+**Category-scoped derivation** restricts the bundle set to sessions whose `AgreementDocument.offering.category` matches a given category prefix before applying the §10.5.1 algorithm:
+
+```
+derive_category_scoped(party, bundles, windowStart, windowEnd, categoryScope):
+
+  // 1. Filter to bundles whose agreement's category is within categoryScope
+  category_bundles := [b for b in bundles
+                        where b.agreementRef is present
+                        AND fetch_category(b.agreementRef) starts_with categoryScope]
+
+  // 2. Apply the standard §10.5.1 derive() algorithm over category_bundles
+  return derive(party, category_bundles, windowStart, windowEnd)
+```
+
+`fetch_category` resolves the bundle's `agreementRef` to its `AgreementDocument` (per the §7.5.2 attestation resolution algorithm) and returns `offering.category` from the referenced listing. Bundles whose `agreementRef` cannot be resolved MUST be excluded from the category-scoped set (not treated as matching any category).
+
+**`categoryScope` matching rule.** A bundle's category matches `categoryScope` if and only if `agreement.listing.offering.category == categoryScope` OR `agreement.listing.offering.category` starts with `categoryScope + "."`. Examples: scope `"data.finance"` matches `"data.finance"`, `"data.finance.fx"`, `"data.finance.equities"` but NOT `"data.financetools"`.
+
+**Use in `ReputationHint` (§6.3.6).** The `ReputationHint` attached to a `ListingSummary` is computed by applying `derive_category_scoped` with `categoryScope` equal to the listing's `offering.category` (or a prefix thereof — catalogs MAY broaden the scope when the listing category has fewer than a minimum number of qualifying bundles, provided the `reputationHint.categoryScope` field accurately reflects which scope was used). Consumers MUST read `reputationHint.categoryScope` to understand what population is reflected; the hint is only a fast-path pre-filter and MUST be verified against underlying bundles for high-stakes decisions.
+
+**Relationship to §10.5.2 per-primary-claim keying.** Category scoping is an orthogonal filter applied after the per-primary-claim scope; it does not change the identity keying rule.
+
 ### 10.6 The rate phase (optional)
 
 A DACS-5 phase that produces structured ratings between parties at session end.
@@ -3274,7 +3416,7 @@ EVM-side consumers MAY read ERC-8004 entries as a discovery surface for DACS-5 b
 **Sybil reputation farming.** *Threat:* an attacker creates many cheap primary claims (key:…) and farms self-deal reputation between them. *Mitigation:* DACS-5 metrics are partitioned by primary claim and do not inherit; Sybil farming over key:… claims accumulates reputation only against those claims, not against higher-tier presentations. The DACS-2 supplementary signals (counterparty being a known Sybil cluster) feed back into Vet for any party who cares.
 **Replay across sessions.** *Threat:* an attacker captures a signed bundle and replays it as a different session’s bundle. *Mitigation:* the bundle includes jobId; the signature payload includes the bundle hash which includes jobId. Replay against a different jobId fails verification.
 **Cross-protocol signature confusion.** *Threat:* a bundle signature is replayed as some other DACS signature (listing, agreement) where the underlying hash bytes happen to align. *Mitigation:* the universal signature scheme in chapter 7§7.7 defines per-artifact domain separators across the entire DACS v0.1 stack; the bundle domain separator is "dacs-bundle:v1:" and other artifact kinds use their own separators per the table in §7.7. A signature produced under any artifact kind cannot validate as a signature under any other kind, even when the hash bytes coincide.
-**Reputation poisoning via collusion.** *Threat:* two colluding parties run many fake sessions to inflate each other’s reputation. *Mitigation:* this is fundamentally hard to prevent at the protocol level. DACS-5 mitigates by per-primary-claim keying (collusion inflates only one tier of reputation), by transactional-volume reporting (consumers can see if a party’s reputation comes from many tiny sessions vs few large ones), and by composability with external signal sources. Consumers handling stakes worth the cost of collusion SHOULD weigh DACS-5 metrics against external signals.
+**Reputation poisoning via collusion.** *Threat:* two colluding parties run many fake sessions to inflate each other’s reputation. *Mitigation:* this is fundamentally hard to prevent at the protocol level. DACS-5 mitigates by per-primary-claim keying (collusion inflates only one tier of reputation), by transactional-volume reporting (consumers can see if a party’s reputation comes from many tiny sessions vs few large ones), and by composability with external signal sources. The volume signal is **weak and must not be over-trusted**: `observedTransactionalVolume` is reported per-currency, unnormalised, with no FX conversion and no per-row transaction count (§10.5), so a colluding pair transacting across many low-significance currencies can keep every `PriceTerm` row small and evade the "few large vs many tiny" heuristic; cross-currency rows are not comparable or summable. Consumers SHOULD read volume alongside `bundleCount` and external signals rather than as a standalone collusion gate. (A per-row transaction count and an FX-normalised aggregate would strengthen it — roadmap.) Consumers handling stakes worth the cost of collusion SHOULD weigh DACS-5 metrics against external signals.
 **Orchestrator misclassification of errorClass.** *Threat:* the orchestrator classifies a counterparty failure as a substrate failure (or vice versa) to bias reputation. *Mitigation:* the bundle phaseSummary carries the errorClass; both parties sign the bundle; a party that disagrees with the classification refuses to sign, producing aborted-by-other. The honest party’s independent bundle (with their own classification) is the source of truth for their reputation. Persistent classification disputes are a DACS-X concern.
 **Bundle anchor unavailability.** *Threat:* the SR-2 anchor becomes unreadable after the session ends (e.g. storage program purged, IPFS unpinned). *Mitigation:* on-substrate anchoring (Demos Storage Programs) provides indefinite availability under substrate operation. Off-substrate anchoring (IPFS, HTTPS) is best-effort. Listings concerned with long-term auditability SHOULD use on-substrate anchoring for bundles regardless of which surface the rest of the session uses.
 **Time-bound reputation windows.** *Threat:* an old, no-longer-representative reputation is presented as current; or a producer backdates or forward-dates the self-asserted `finalisedAt` to move a session out of a scrutinised window or to cluster volume into a favourable one. *Mitigation:* derivations are window-bounded; consumers querying reputation MUST specify a window and SHOULD weight recent windows more heavily. The algorithm does not specify weighting (consumers choose); it does require explicit window bounds in every derivation. Against producer-chosen `finalisedAt`, consumers performing high-stakes derivation SHOULD window against the SR-2 anchor timestamp per §10.5.1, so that the substrate — not the bundle producer — decides window membership.
@@ -3288,11 +3430,11 @@ EVM-side consumers MAY read ERC-8004 entries as a discovery surface for DACS-5 b
 
 DACS v0.1 is stewarded by **KyneSys Labs**. This means: the registry signing key currently used to sign recipes (DACS-2) and rail definitions (DACS-4) is held by KyneSys Labs; the canonical anchored addresses for those registries are written by KyneSys Labs; spec changes between minor versions are reviewed and merged by KyneSys Labs. This is a single-steward arrangement — phase PA-2 in the progressive-anchoring scheme defined in §7.4.4. It is **not** the long-term governance target; it is the honest description of where v0.1 sits at time of publication.
 Multi-party governance — a constituted working group, formal multi-signature schemes for the registries, sub-authority delegation by domain (sanctions lists, financial regulation, settlement rails) — is open work. v0.1 ships under single-steward semantics so the standard can move forward; transitioning to a multi-party arrangement is anticipated as the ecosystem of implementers, reviewers, and operators grows. The PA-2 → PA-3 transition (§7.4.4) is the formal anchor point for that change.
-Implementations consuming the registries MUST disclose to their users which signing key they treat as authoritative and MUST NOT misrepresent the current steward as a constituted multi-party body. Third-party implementations (such as PATH-OS Labs’ reference) MAY operate against the same canonical registries; the steward arrangement governs who writes the registries, not who reads them.
+**(GOV-1)** Implementations consuming the registries MUST disclose to their users which signing key they treat as authoritative and MUST NOT misrepresent the current steward as a constituted multi-party body. Third-party implementations (such as PATH-OS Labs’ reference) MAY operate against the same canonical registries; the steward arrangement governs who writes the registries, not who reads them.
 
 #### 11.1.2 Versioning
 
-DACS v0.1 is a common baseline: all five per-stage standards, the front-matter substrate-binding, the threat model, the glossary, and the conformance plan are published together at v0.1, the first publicly released version. From this baseline onward each per-stage standard versions independently — a standard that gains capabilities bumps its own version without forcing the others, and a pipeline composes a coherent set of per-stage versions. Within a standard, major versions (v1, v2, …) break compatibility; minor versions (v0.2, v0.3, …) add capabilities while preserving forward-readable shapes. v0.1 freezes the registries (claim schemes in DACS-1, methods/recipes in DACS-2, patterns in DACS-3, rails in DACS-4); additions happen via minor-version registry updates released by the current steward. v1.0 is the version at which a standard is considered ready for unsupervised production use.
+DACS v0.1 is a common baseline: all five per-stage standards, the front-matter substrate-binding, the threat model, the glossary, and the conformance plan are published together at v0.1, the first publicly released version. From this baseline onward each per-stage standard versions independently — a standard that gains capabilities bumps its own version without forcing the others, and a pipeline composes a coherent set of per-stage versions. Within a standard, major versions (v1, v2, …) break compatibility; minor versions (v0.2, v0.3, …) add capabilities while preserving forward-readable shapes. v0.1 freezes the registries (claim schemes in DACS-1, methods/recipes in DACS-2, patterns in DACS-3, rails in DACS-4) as an immutable baseline; later additions happen via minor-version registry updates released by the current steward, **appended to the same registry-index document** (`dacs2:registry:v0.1` / `dacs4:registry:v0.1`). That index address is the registry's **major-version line**: the `:v0.1` suffix denotes the v0.x line, not a content snapshot — the index document grows additively across minor versions and is re-addressed only on a major (v1 → v2) bump. A consumer therefore always resolves the same address and sees every v0.x entry; "frozen at v0.1" means the original baseline entries are immutable (never mutated in place), not that the index stops growing. Each entry carries its own `recipeVersion` / `railVersion` for per-session pinning (§7.4.3 / §9.4.3). v1.0 is the version at which a standard is considered ready for unsupervised production use.
 
 #### 11.1.3 Conformance philosophy
 
@@ -3330,6 +3472,8 @@ v0.1 rails are discrete-transaction. Streaming payment rails (Sablier-style, pay
 
 Each per-stage standard specifies forward-compatibility within itself (a later-minor reader handles earlier-minor bundles of the same standard). Cross-version compatibility (a DACS-1 v2 listing pipelined against a DACS-3 v0.1 negotiator) is deferred; pipelines MUST currently use a coherent set of per-stage versions.
 
+**v0.1 version-signalling scope.** Every anchored artifact carries a `*Version` literal (`dacsVersion`, `bundleVersion`, `agreementVersion`, `evidenceVersion`, `ratingVersion`, `resultVersion`) that records the **major** version only; in v0.1 these are all `"1"`. The listing-validation "dacsVersion supported" gate (§6.3.4 step 2) is therefore a **major-version** check in v0.1 — meaningful against a future major (v2) break, but not minor-discriminating. Two things are consequently **not** signalled in v0.1 and are roadmapped: (a) a per-artifact **producing-minor-version** field, which a reader would need to select an era-specific decode path (the later-reads-earlier direction is already handled for signed artifacts by SIG-5 preserve-unknown + "forward-readable shapes"); and (b) the **older-reader-newer-minor** direction (an older reader encountering a higher-minor artifact) — undefined in v0.1. Since v0.1 is the single published baseline, neither bites today; both land with the cross-version compatibility work above.
+
 #### 11.2.6 Multi-party governance and registry stewardship
 
 The transition from single-steward (PA-2) to multi-party constituted governance (PA-3) for the recipe and rail registries is itself follow-on work. v0.1 does not specify the constitution mechanism, multi-signature thresholds, sub-authority delegation, or transition procedure. These are open questions for the working group that the ecosystem chooses to constitute. Until that body exists, the current steward operates under the disclosure rules in §11.1.1.
@@ -3351,7 +3495,7 @@ This chapter collects, partitions, and rationalises the per-chapter security con
 ### 12.1 Scope and non-goals
 
 DACS’s security goals are: (a) cryptographic non-repudiation of every per-session artifact (listings, bundles, agreements, evidence) by the parties that produced them; (b) tamper-evident audit trail — any modification of an anchored artifact is detectable by content-hash comparison; (c) limited-trust substrate dependency — the substrate is trusted for liveness and consensus per its own security model, not for application-layer semantics; (d) prevention of cross-protocol signature confusion via the universal domain-separation scheme in §7.7; (e) prevention of replay across sessions via per-session jobIds, nonces, and content hashes; (f) substrate-failure isolation in reputation derivation so substrate outages do not damage party reputations.
-Non-goals: DACS does **not** prevent collusion between buyer and seller (two parties who jointly fabricate a session produce a valid session; the audit trail records what they say happened, not what objectively happened). DACS does **not** prevent denial-of-service by a counterparty or by the substrate (it produces evidence of the failure for reputation purposes, but does not guarantee progress). DACS does **not** prevent regulatory non-compliance — it produces artifacts useful for compliance audit but does not enforce any specific regulatory regime. DACS does **not** provide unconditional privacy — the SR-4 channel contents stay between members, but member identity and timing of commitments are visible on the public chain by design.
+Non-goals: DACS does **not** prevent collusion between buyer and seller (two parties who jointly fabricate a session produce a valid session; the audit trail records what they say happened, not what objectively happened). DACS does **not** prevent denial-of-service by a counterparty or by the substrate (it produces evidence of the failure for reputation purposes, but does not guarantee progress). DACS does **not** prevent regulatory non-compliance — it produces artifacts useful for compliance audit but does not enforce any specific regulatory regime. DACS does **not** provide unconditional privacy — the SR-4 channel contents stay between members, but member identity and timing of commitments are visible on the public chain by design. **This visibility extends to the audit layer**: anchored DACS-5 bundles, commit-agreement records, and DACS-2 vet attestations carry party **primary claims — durable authority-issued identities (LEI, FINRA-CRD, …) — in cleartext at derivable addresses**, so a passive observer can reconstruct the **counterparty graph** (who transacted with whom, correlatable across every session an identity runs) with **no cryptography to break**, and can read each vet attestation's `scheme:identifier:decision` (e.g. "party X was screened against OFAC → clear"). DACS accepts this by design — it is an *accountability* standard, and a public, verifiable audit trail necessarily exposes the relationship. (Raw private *values* behind a verification are separately protected by the §7.5 public-anchor data-minimisation rule; only predicate outcomes are exposed.) A confidentiality layer that anchors these records **encrypted to the parties** while keeping the content hash public for tamper-evidence is roadmap work, not v0.1.
 
 ### 12.2 Adversary model
 
@@ -3359,7 +3503,7 @@ The threat model assumes adversaries with the following capabilities; per-threat
 
 | Adversary class | Capabilities | Assumed not capable of |
 | --- | --- | --- |
-| Network observer | Reads all public-chain traffic; can perform timing analysis on commitments; cannot read private-channel contents. | Breaking standard cryptographic primitives (sha256, Ed25519, ECDSA-secp256k1 under standard assumptions). |
+| Network observer | Reads all public-chain traffic; can perform timing analysis on commitments; **can reconstruct the counterparty graph from anchored bundles / commit-agreement records / vet attestations (cleartext primary claims at derivable addresses) and read each vet attestation's scheme:identifier:decision**; cannot read private-channel contents. | Breaking standard cryptographic primitives (sha256, Ed25519, ECDSA-secp256k1 under standard assumptions); recovering the raw private values behind a verification (predicate-outcome-only under §7.5 minimisation). |
 | Network active attacker | Can drop, delay, reorder, or inject messages on transport links; can MITM TLS sessions if PKI is compromised. | Forging signatures by valid private keys; producing sha256 preimages. |
 | Malicious counterparty | Operates a fully-conformant DACS implementation but maximises self-interest within the protocol; signs everything they’re willing to be held to and refuses to sign anything else. | Forging the other party’s signatures; controlling validator-set consensus on the substrate. |
 | Compromised authority | A registry authority (GLEIF, FINRA, OFAC, etc.) returns false data, either by deliberate compromise or by API corruption. | Forging substrate-validator signatures over the false response (validators sign the fetch result, not the data’s factuality). |
@@ -3370,13 +3514,18 @@ The threat model assumes adversaries with the following capabilities; per-threat
 | Recipe-registry attacker | Compromises the recipe registry signing key, attempts to push poisoned recipes. | Backdating recipe-version pinning; affecting already-pinned sessions. |
 | Sybil attacker | Generates unlimited low-tier (key:…) identities and farms self-deal reputation. | Generating authority-issued claims (lei, finra-crd, etc.) without owning the underlying registrations. |
 | Malicious orchestrator | Drives the session pipeline, assigns `errorClass`, constructs the SessionRecord, and MAY be a distinct REQUIRED signer (§10.4.1); can misclassify failures, drop or reorder phase results, or selectively anchor. | Forging buyer/seller signatures, or producing a both-sided-signed bundle without honest-party consent (§10.11 two-sided independent bundles; party-disagreement → aborted-by-other). |
+| Malicious infrastructure | Operates discovery/index/storage infrastructure a party depends on (catalog API, listings index, anchor host); can serve poisoned, stale, or withheld data on the read path. | Forging the signatures on the signed artifacts it serves (consumers dereference anchors and verify content hashes + signatures independently). |
+| Malicious verifier | Runs the DACS-2 vet path; can mis-run a recipe, substitute a method, or assert a decision the authority did not return. | Forging the authority's signed/consensus-anchored response, or a recipe steward signature; producing a VerifyResult that re-derives correctly under method/recipe-version checks. |
+| Spam / resource-exhaustion adversary | Floods a public surface (ERC-8004 registry writes, negotiation-channel griefing, mempool) to raise cost or degrade availability. | Forging identities or claims (each write/identity costs); breaking liveness of correctly-rate-limited or staked surfaces. |
+
+**Reconciling the §12.4 "Primary adversary" column with this model.** Every §12.4 row's adversary resolves to a class above, with two conventions: (a) **variants of an existing class** — "competing bidder" and "two colluding counterparties" are *Malicious counterparty* (single and colluding); "public-mempool observer" is *Network observer*; "storage operator" is *Malicious infrastructure*. (b) **Non-adversary conditions** — "time" (TOCTOU / stale-window races) and "implementation bug" (e.g. decimal overflow) are **environmental / robustness** conditions, not adversaries: the threat is real and the cited mitigation stands, but there is no actor to model — these rows are defended by deterministic rules and bounds, not by an adversary assumption.
 
 ### 12.3 Trust boundaries
 
 A reader following the audit trail from a DACS-5 bundle backwards through the lifecycle crosses these trust boundaries; each boundary has its own assumptions.
 
 - **Party-to-party cryptographic boundary.** Every signed artifact (listing, bundle, agreement, evidence, rating) is verifiable against the signer’s primary-claim key. Trust assumption: the signing key has not been compromised at or before the artifact’s timestamp. Mitigation: key-rotation handling per §6.6 (DACS-1 security considerations).
-- **Party-to-authority boundary.** A DACS-2 VerifyResult of method consensus-backed-proxy depends on the authority (GLEIF, FINRA, OFAC, etc.) being honest at fetch time and on the TLS PKI between the substrate validators and the authority. Mitigation: the recipe’s alternatives mechanism (§7.4) lets high-stakes schemes require multi-method verification; the v0.2 strengthening (§7.3.5) will tighten the consensus-backed-proxy method itself.
+- **Party-to-authority boundary.** A DACS-2 VerifyResult of method consensus-backed-proxy depends on the authority (GLEIF, FINRA, OFAC, etc.) being honest at fetch time and on the TLS PKI between the substrate validators and the authority. Mitigation: the recipe’s alternatives mechanism (§7.4) lets high-stakes schemes declare additional independent verification methods (§7.12); the v0.2 strengthening (§7.3.5) will tighten the consensus-backed-proxy method itself.
 - **Party-to-substrate boundary.** Every anchor (listings, bundles, evidence, recipes, rails) depends on the substrate’s SR-2 implementation for availability and content integrity. Trust assumption: substrate validator-set is honest per the substrate’s consensus protocol. Mitigation: on-substrate anchoring (Storage Programs on Demos) provides indefinite availability; off-substrate anchoring (IPFS, HTTPS) is best-effort.
 - **Substrate-to-substrate boundary (cross-chain).** SR-5 atomic settlement crosses chains and depends on the SR-5 mechanism’s trust model (HTLC: cryptographic only; Liquidity Tank: substrate operator; substrate-native: substrate consensus). Mitigation: explicit rail-trust-model disclosure in rail definitions; per-stake rail selection.
 - **Party-to-recipe-registry boundary.** Verification routes through recipes whose signing authority is the registry steward (currently KyneSys Labs, per §7.4.4 and §11.1.1). Trust assumption: the steward’s signing key is honest and uncompromised. Mitigation: monotonic recipe-version pinning per session; emergency-revision discipline (§7.4.4). Residual risk under PA-2: steward-key compromise; PA-3 multi-signature governance is the v0.2+ mitigation pathway.
@@ -3395,6 +3544,13 @@ Every per-chapter security threat, indexed by adversary class and mitigation sta
 | Recipe poisoning | recipe-registry attacker | §7.12 (signed recipes + pinned recipeVersion) | mitigated |
 | Substrate validator capture (SR-3) | substrate validator-set majority | §7.12 (multi-method alternatives) | partial — v0.2 strengthening planned |
 | Authority-endpoint TLS MITM (forged authority response) | network active attacker (PKI compromise) | §7.3.5 (v0.2 validator-body-signed) + §7.4 (multi-method alternatives) | partial — v0.2 strengthening planned, residual in v0.1 |
+| Negative-match fail-open (truncated sanctions list clears a listed party) | malicious infrastructure / lossy fetch | §7.3.5 PSP-5 (completeness floor before a negative `pass`) | mitigated |
+| Verifiable-presentation replay (verified VC re-presented by a non-holder) | malicious counterparty | §7.3.2 (VP holder-binding to session nonce) | mitigated |
+| HTLC preimage-reveal front-running | network observer / MEV | §9.5.4 (claims are beneficiary-bound — a front-runner cannot redirect funds; ordering/MEV is a chain-level concern, not a DACS theft vector) | mitigated (theft) / residual (ordering) |
+| Rail availability-field poisoning (read before pin) | malicious infrastructure | §9.4.5 (availability pinned from the authoritative rail definition at session start, not a cached/untrusted read) | mitigated |
+| Cross-session offer replay (channelId reuse) | malicious counterparty | §8.12 CH-6 (channelId unique per session) | mitigated |
+| Counterparty-graph reconstruction (cleartext primary claims at derivable anchor addresses) | network observer | §12.1 (accepted by design — public audit trail; requires no crypto; encrypted-to-parties anchoring is roadmap) | accepted by design |
+| Vet-attestation disclosure (anchored VerifyResult reveals "party X screened against authority Y → outcome Z") | network observer | §7.5 (public-anchor data minimisation — predicate outcomes only, no raw PII) + §12.1 (scheme:identifier:decision accepted by design) | partial — raw PII minimised; relationship/decision accepted by design |
 | VerifyResult replay | malicious verifier | §7.12 (identifier + bundle hash binding) | mitigated |
 | TOCTOU authority change | time | §7.12 (maxAge tightening) | parameter-driven |
 | Indeterminate exploitation | malicious counterparty | §7.5.1 + §7.7.1 (aggregation) | mitigated |
@@ -3523,11 +3679,11 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **Method common contract (CM-1..CM-5).** For each of the eight v0.1 methods: input-shape validation; outcome classification (pass/fail/indeterminate); attestation anchoring; VerifyResult emission with correct method field; canonical form + domain-separated signature.
 - **Recipe authoring (RA-1..RA-5).** Steward-key signature with domain separator; canonical anchoring; version monotonicity; supersedes-on-replace.
 - **Recipe resolution.** Index lookup; content-hash verification; version pinning.
-- **ParserSpec semantics (PSP-1..PSP-4).** Match-predicate evaluation per format (jsonPath/selector/xPath/matcher); decision mapping (parse-fail → error not fail; negative-match inversion via `negativeMatch`); `indeterminateOn` predicates evaluated before the match predicate → indeterminate; dataMap extraction recorded without changing the decision; deterministic parsing with no script execution / sub-resource fetch / redirect following.
+- **ParserSpec semantics (PSP-1..PSP-5).** Match-predicate evaluation per format (jsonPath/selector/xPath/matcher); decision mapping (parse-fail → error not fail; negative-match inversion via `negativeMatch`); `indeterminateOn` predicates evaluated before the match predicate → indeterminate; dataMap extraction recorded without changing the decision; deterministic parsing with no script execution / sub-resource fetch / redirect following; **PSP-5 negative-match completeness floor — a truncated/partial full-list download MUST NOT return `pass` ("not listed"); completeness (record-count / sentinel / Content-Length) confirmed before any negative clear, else indeterminate.**
 - **Retry semantics (VP-R1..VP-R4).** Transient retry on error; permanent no-retry; new attestation on each retry; no-retry-on-indeterminate by default; retryOnIndeterminate flag honoured when set.
 - **Caching semantics (VP-C1..VP-C3).** Reuse within validUntil; record-update on reuse; maxAge override of recipe default.
 - **Aggregation.** Each branch of classify_required: missing, all-failing, all-indeterminate, all-errored, mixed-with-pass. oneOf groups: failure vs error vs indeterminate distinction. Precedence: failures > errors > indeterminates when classifying overall.
-- **Recipe and rail availability (§7.4.5, §9.4.5).** Every value in the closed enum produces the conformant orchestrator/verifier behaviour: RAV-1 through RAV-4 for recipes (no silent treatment as live; consumer surfacing; disabled/failed → error in aggregation; alternative availability not inheriting from default); RAV-R1 through RAV-R4 for rails (preflight inspection; no selection of disabled/failed; mid-session live→failed transition maps to substrate errorClass).
+- **Recipe and rail availability (§7.4.5, §9.4.5).** Every value in the closed enum produces the conformant orchestrator/verifier behaviour: RAV-1 through RAV-4 for recipes (no silent treatment as live; consumer surfacing; disabled/failed → error in aggregation; alternative availability not inheriting from default); RAV-R1 through RAV-R5 for rails (preflight inspection; no selection of disabled/failed; rail-down-at-settlement-attempt maps to substrate errorClass; RAV-R5 availability read from the authoritative signed/anchored rail definition, not a poisonable cache).
 - **Phase contract (VPC-1..VPC-4).** Order (Vet after Identify, before Negotiate); two-sided execution; anchor-before-return; fail-or-indeterminate handling.
 - **Matching algorithm (MA-1..MA-3, §6.3.3).** required/oneOf satisfaction; primaryClaimSelector scheme match (MA-2: presentedBy scheme != selector → REJECT); presentedBy verification (MA-3: primaryClaimSelector set + presentedBy claim unverified, i.e. missing/failing verifiedBy → REJECT, even when the structural scheme matches).
 
@@ -3538,13 +3694,13 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **negotiate-fixed-price.** Live signature path; auto-accept commitment + instance-signature path; rejection of pre-issued per-instance signatures.
 - **negotiate-rfq (RFQ-1..RFQ-4).** maxTurns enforcement; turn-timeout enforcement; out-of-band-terms rejection by commit-agreement.
 - **negotiate-sealed-envelope (SE-1..SE-7).** commitDeadline enforcement (chain-timestamped); reveal-window enforcement against SR-2 anchor timestamp (SE-3); reveal-mismatch exclusion; deterministic selection with anchor-timestamp tie-break and lexicographic-bidHash fallback (SE-5); rule-ref content-hash binding and mismatch-fails-the-phase (SE-6); domain-separated bidHash (`dacs-sealed-bid:v1:`) and bid-commitment salt floor — ≥256-bit entropy, non-reuse, base64url encoding (SE-7).
-- **Agreement validation (§8.5.2).** Price-band check; rail-acceptance check; deliverable-conformance check; deadline-bound check; pattern-match check.
+- **Agreement validation (§8.5.2).** Price-band check; rail-acceptance check; deliverable-conformance check; deadline-bound check; pattern-match check; `priceAnchor` when present: `attestationRef` MUST resolve to a valid SR-3 attestation, `price` MUST be CD-1 canonical — implementations MUST NOT reject an otherwise-valid agreement solely because `priceAnchor` is absent.
 - **commit-agreement (CA-1..CA-4).** Refuse advance until ok-true; double-commit rejection; immutability after anchor; domain-separated commitment signature.
 
 ### 14.4 DACS-4 — Settle
 
 - **Rail authoring (RD-1..RD-5).** Steward-key signature with domain separator; anchoring; version monotonicity; railType/asset/network consistency.
-- **Payment common contract (PC-1..PC-5).** For each of the six pay-* phases: input-shape validation; anchored SettlementEvidence; PhaseHandlerResult with correct attestationRef; outcome classification across all errorClass values; and currency-resolution (PC-5) — `amount.currency` MUST resolve to `rail.asset` per AssetSpec kind (symbol for erc20/spl/native, isoCurrency for fiat-via-ap2, canonicalSymbol for stablecoin-cross-chain) and a mismatch MUST be rejected as `ok:false`/`errorClass:"permanent"`.
+- **Payment common contract (PC-1..PC-6).** For each of the six pay-* phases: input-shape validation; anchored SettlementEvidence; PhaseHandlerResult with correct attestationRef; outcome classification across all errorClass values; currency-resolution (PC-5) — `amount.currency` MUST resolve to `rail.asset` per AssetSpec kind (symbol for erc20/spl/native, isoCurrency for fiat-via-ap2, canonicalSymbol for stablecoin-cross-chain) and a mismatch MUST be rejected as `ok:false`/`errorClass:"permanent"`; settlement-finality population (PC-6) — a `success`-outcome payment evidence record MUST carry a `settlementFinality` field with the correct `model` for the rail and the `finalityBlocks` or `finalityCommitmentLevel` parameter sourced from rail.parameters, and a delivery evidence record MUST NOT carry `settlementFinality`.
 - **pay-evm-erc20 / pay-solana-spl.** Decimal-conversion correctness (no float arithmetic); chain-finality wait; SettlementEvidence with correct txRef kind.
 - **Canonical decimal (CD-1).** PriceTerm.amount canonicalisation: economically-equal forms (`"1.50"`, `"01.5"`, `"1.500"`) all normalise to `"1.5"` and produce identical agreement/SettlementEvidence JCS hashes and signatures; non-canonical input on read either canonicalises or is rejected per implementation policy; §8.5.2 price-band and price-equality checks compare canonicalised decimals, not raw strings.
 - **pay-cross-chain-htlc (HTLC-1..HTLC-10).** buyerSalt entropy enforcement; HKDF preimage-derivation correctness (IKM=buyerSalt, salt=jobId, info=agreementHash) with input-uniqueness (unique jobId / collision-resistant agreementHash); salt-non-reuse across sessions; pre-finality-reveal rejection; **canonical claim order** — payer (preimage holder) locks the longer-timelock source (beneficiary = payee), payee locks the shorter-timelock destination (beneficiary = payer), payer claims the destination first (revealing), payee then claims the source; timelock-refund path; per-chain native hashlock functions (keccak256 on EVM, sha256 on Solana, blake2b on Cosmos) producing distinct hashlocks from the same preimage; timelock asymmetry (timelock_source > timelock_dest + finality, finality margin ≥ 2× dest P99 latency) enforced on absolute expiry instants under the source-lock-finality epoch (HTLC-7/HTLC-8), with mis-configured routes rejected; asymmetric-settlement (dest-revealed / source-claim-pending — payer received on destination, payee owed source) surfaced as evidence, not a refund (HTLC-9); free-option disclosure (HTLC-10).
@@ -3552,15 +3708,16 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **pay-cross-chain-liquidity-tank.** BridgeOperation lifecycle ("empty" → "pending" → "completed" | "failed"); bridge_id recording; route-in-supported-scope validation.
 - **pay-ap2 / pay-x402.** Mandate-revocation handling; receipt-signature verification.
 - **Delivery phases.** deliver-storage-program with normal and extended-pointer payloads; deliver-entitlement with signature + anchor + scope; deliver-attested-payload composing DACS-2 attestation.
-- **Pipeline (PIPE-1..PIPE-5).** At-least-one-pay + at-least-one-deliver; deterministic ordering; pay-before-deliver ordering; deliver-before-pay ordering; phase repetition.
+- **Pipeline (PIPE-1..PIPE-5).** At-least-one-deliver (pay-* optional — intake-only / out-of-band-settlement listings are valid, reconciled with §6.3.4(8)); deterministic ordering; pay-before-deliver ordering; deliver-before-pay ordering; phase repetition.
 
 ### 14.5 DACS-5 — Verify
 
 - **Session state transitions.** Every `(from → to)` pair MUST be in the §10.3.1 transition table and no other; illegal-pair rejection (e.g. negotiate after commit, ST-1); abort entry from any `*-pending` (ST-3); rate branch and rate-non-fatal (ST-4/ST-5); substrate-failure pause → recorded-pending resume on success and → failed-substrate on timeout (ST-7); every terminal state maps to its §10.3.1 `outcome` (ST-6 + the state→outcome table).
 - **Bundle production.** Two-sided anchoring at role-specific addresses; canonical-form equality between buyer and seller bundles in happy case; domain-separated signature ("dacs-bundle:v1:"); extended-pointer pattern for oversized bundles.
-- **Bundle consumption.** Two-sided lookup; one-sided-bundle → aborted-by-self classification; divergent-bundles → disputed classification.
+- **Bundle consumption.** Two-sided lookup; one-sided-bundle → aborted-by-self classification; divergent-bundles → the consumer fetches both party addresses, detects canonical divergence, and applies the §10.4.3(d) per-party policy (buyer's bundle for buyer-reputation, seller's for seller-reputation). "disputed" is a **consumer-side verdict**, not an `AttestationBundle.outcome` value (the outcome enum has no `disputed` member) — the test asserts the observable §10.4.3(d) behaviour, not an enum label.
 - **Reputation derivation.** All outcome partitions (completed / failed-perm / failed-counterparty / failed-substrate / aborted-by-self / aborted-by-other); party-fault denominator excluding failed-substrate; null vs zero metric distinction; rating aggregation via ratingRefs fetch.
 - **Per-primary-claim keying.** Reputation computed against the bundle party's primaryClaim (sourced from bundle.presentedBy); no inheritance across tiers.
+- **Category-scoped derivation (§10.5.4).** Bundle set filtered to matching `categoryScope` prefix before applying §10.5.1; non-resolving agreementRefs excluded; categoryScope prefix-match rule (exact match OR `category + "."` prefix); a bundle outside the scope is excluded, not counted as a failure; `ReputationHint.categoryScope` accurately reflects the scope used.
 - **Rate phase.** Run-after-settle ordering; one-record-per-direction; signature with rating domain separator; bundle-inclusion; RT-1 producer-reject of out-of-range `value` (non-integer or ∉[1,5]) / over-length `freeText`; RT-2 deriver-exclude of a non-conforming self-signed rating from the average; `dimensions` treated as opaque (not aggregated).
 - **ERC-8004 publication (optional).** Token-owner-signed entry; bundle-anchor pointer correctness; rate-limit enforcement.
 
@@ -3577,17 +3734,23 @@ A cross-cutting test category that every conforming implementation runs once:
 - **CD-1 (canonical decimal).** `"1.50"` and `"1.5"` as `PriceTerm.amount` MUST produce identical agreement hashes and signatures.
 - **SIG-5 (preserve-unknown).** A verifier built against schema vN MUST successfully verify the signature on a document produced under vN+1 that adds an unknown field, by hashing the document as received (unknown field included); a verifier that strips the unknown field before hashing (and thus rejects) FAILS this test.
 
-### 14.7 Substrate-capability tests
+### 14.7 Governance (GOV-1..GOV-3)
+
+- **GOV-1 steward disclosure.** A registry consumer surfaces which signing key it treats as authoritative and does not present the single steward as a constituted multi-party body.
+- **GOV-2 anchoring-phase disclosure.** An implementation discloses its operating phase (in-code / single-signer / multisig).
+- **GOV-3 anchoring-phase verification.** A consumer reads the resolved recipe's `governance.anchoring` and evaluates each pinned recipeVersion against the phase recorded at pin time; a recipe marked `in-code` is not treated as canonically anchored.
+
+### 14.8 Substrate-capability tests
 
 For substrates other than Demos that claim conformance, additional capability tests apply:
 
 - **SR-1.** Sub-identity binding test: a root key binds N sub-identities, presents under a single SR-1 signature, verifier resolves each to its claim scheme.
 - **SR-2.** Anchor-write → retrieve → content-hash check round-trip; size-cap enforcement.
 - **SR-3.** Fetch-specification → consensus-signed commitment → anchor; body-hash verification by independent consumer. (v0.1 conformance bar is trust-property; v2 will add wire-protocol tests.)
-- **SR-4.** Channel-establish → member-only-message-delivery → non-member-cannot-read; CH-1..CH-5 each as a test. (v0.1 trust-property; v2 wire-protocol.)
+- **SR-4.** Channel-establish → member-only-message-delivery → non-member-cannot-read; CH-1..CH-6 each as a test (CH-6: channelId unique per session — cross-session offer-replay rejected). (v0.1 trust-property; v2 wire-protocol.)
 - **SR-5.** Cross-chain lock → release with bounded-time atomicity; refund path on counterparty timeout.
 
-### 14.8 Out of scope for v0.1 conformance
+### 14.9 Out of scope for v0.1 conformance
 
 The following are not part of v0.1 conformance and SHOULD NOT be tested as such:
 
@@ -3595,7 +3758,7 @@ The following are not part of v0.1 conformance and SHOULD NOT be tested as such:
 - Multi-party transactions beyond bilateral plus sealed-envelope (deferred).
 - Streaming / continuous-flow rails (deferred).
 - Cross-DACS-version pipelines (deferred).
-- Dispute resolution flows (DACS-X, anticipated).
+- Dispute *resolution* flows (DACS-X, anticipated). Divergence *detection* — the two-sided lookup plus canonical-divergence classification and per-party policy of §10.4.3(d) — **is** in scope for v0.1 conformance; only the resolution layer is deferred.
 
 ## References
 

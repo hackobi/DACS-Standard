@@ -1,0 +1,27 @@
+{
+  "kind": "RatingRecord",
+  "dacsVersion": "0.1",
+  "specRefs": [
+    "§10.6",
+    "§14.5"
+  ],
+  "artifact": {
+    "ratingVersion": "1",
+    "jobId": "01HX0000000000000000000000",
+    "rater": "did:demos:agent:bob-buyer",
+    "target": "did:demos:agent:alice-data-agent",
+    "targetRole": "seller",
+    "value": 5,
+    "freeText": "Delivered the requested market data snapshot on time.",
+    "dimensions": {
+      "timeliness": 5,
+      "quality": 5
+    },
+    "ratedAt": 1780358520000,
+    "signature": {
+      "algorithm": "ed25519",
+      "signer": "did:demos:agent:bob-buyer",
+      "value": "sig:example-rating-signature"
+    }
+  }
+}

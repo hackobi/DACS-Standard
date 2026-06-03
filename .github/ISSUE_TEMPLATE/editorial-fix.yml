@@ -1,0 +1,47 @@
+name: Editorial fix
+about: Report typos, broken links, formatting issues, or non-normative wording cleanup.
+title: "Editorial: "
+labels: ["editorial"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Editorial issues should not change normative semantics. Please still identify the section, artifact / file path, and alternate wording or proposed fix.
+  - type: input
+    id: section
+    attributes:
+      label: Section
+      placeholder: "README.md / §13"
+    validations:
+      required: true
+  - type: input
+    id: artifact
+    attributes:
+      label: Artifact or file path
+      placeholder: "docs/glossary-index.md"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Editorial issue type
+      options:
+        - Typo
+        - Broken link
+        - Formatting
+        - Clarifying non-normative wording
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current text or behavior
+    validations:
+      required: true
+  - type: textarea
+    id: alternate
+    attributes:
+      label: Alternate wording or proposed fix
+    validations:
+      required: true
