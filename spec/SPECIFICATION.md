@@ -1678,9 +1678,11 @@ The orchestrator MUST: (VPC-1) invoke vet-credentials after a successful Identif
 | Error class | Cause | Retry? |
 | --- | --- | --- |
 | transient | Substrate temporarily unavailable; authority HTTP 5xx | Yes (per VP-R1) |
-| permanent | Required claim fails; bundle malformed | No |
-| counterparty | Counterparty fails to present required deal-specific claim | No (Vet fails; counterparty marked at-fault) |
+| permanent | Bundle malformed/unparseable; or `indeterminate`/`error` after retry-budget exhaustion (per recipe.retryClass) | No |
+| counterparty | Counterparty fails to present a required claim, OR a required claim returns `decision=fail` (the authority conclusively rejected the counterparty's claim) | No (Vet fails; counterparty marked at-fault) |
 | substrate | SR-2 or SR-3 unavailable for sustained period | Pause session per DACS-5 |
+
+**VPC-4 is the authoritative cause→class mapping; this table enumerates causes consistent with it, not an independent rule.** A required claim returning `decision=fail` maps to **counterparty** (per VPC-4: `"fail" → counterparty`) — it is the counterparty's claim that the authority rejected, so it is never `permanent`. `permanent` is reserved for structural failures (a malformed/unparseable bundle) and for `indeterminate`/`error` outcomes that exhaust their retry budget. Because the class is fully determined by the decision/cause, an orchestrator has no discretion to steer a self-caused `fail` away from the counterparty fault bucket (§10.5.1).
 
 Re-running vet-credentials with the same inputs MUST produce the same composite-record content (modulo timestamps in supplementary signals refreshed against current state). The orchestrator MUST NOT double-anchor; on retry, the existing anchor MUST be reused if its content has not changed.
 
@@ -2829,7 +2831,7 @@ A listing’s pipeline declares the order of payment and delivery phases. Common
 - **Escrow with delivery-gate** (lock → deliver → release): the v0.1 `pay-cross-chain-htlc` handler is an **atomic swap** (§9.5.4) — it has no mid-lock suspension point, so it cannot run a `deliver-*` phase *between* lock and reveal. An escrow that gates release on delivery is therefore **not expressible in v0.1** and is reserved for a future job-escrow rail (ERC-8183 is the natural home — see roadmap). v0.1 listings needing escrow-like risk shifting use deliver-then-pay or pay-then-deliver with the counterparty risk that implies.
 - **Streamed entitlement / subscription**: a multi-tranche subscription is conceptually a **sequence of independent sessions** — a fresh jobId is a *new session*, not a loop within one pipeline (§7.5/§10.3: one pipeline = one jobId). Continuous-flow / subscription settlement, including any cross-session correlation identifier, is **out of scope for v0.1** (§11.2.4; see roadmap). A v0.1 listing models each tranche as its own session.
 
-**Conformance.** (PIPE-1) A pipeline MUST contain at least one pay-*phase and at least one deliver-* phase. (PIPE-2) Phase ordering MUST be deterministic; the listing’s declared order is normative. (PIPE-3) If a pay-*phase is followed by a deliver-* phase, the deliver-*phase MUST NOT execute until the pay-* phase returns ok: true. (PIPE-4) If a deliver-*phase is followed by a pay-* phase, the pay-*phase MUST NOT execute until the deliver-* phase returns ok: true. (PIPE-5) Pipelines MAY repeat a phase; each invocation produces independent SettlementEvidence. In v0.1 each repeated pay-* invocation settles the **same** agreement price (`PaymentPhaseInput.amount` = `agreement.terms.price`) — the payment contract carries no per-phase amount override, fee, or split, so a **fee-split** (distinct amounts to distinct payees, e.g. buyer + platform fee) is NOT representable in v0.1 and is a roadmap item (fee-split / multi-payee settlement model). Repetition is for genuinely identical settlements, not for splitting one price across payees.
+**Conformance.** (PIPE-1) A pipeline MUST contain at least one deliver-* phase. A pipeline MAY contain **zero** pay-* phases — the **intake-only / settled-out-of-band** pattern that §6.3.4(8) names (RFP intake, reverse auctions where the bid is the commitment, free services gated by reputation, sealed-bid procurements settled out-of-band); if a pipeline contains any pay-* phase, the acceptedRails rule of §6.3.4(8) applies. (This reconciles PIPE-1 with §6.3.4(8): a reader of either chapter reaches the same accept decision for a pay-less pipeline — earlier drafts required at-least-one-pay, contradicting §6.3.4(8).) (PIPE-2) Phase ordering MUST be deterministic; the listing’s declared order is normative. (PIPE-3) If a pay-*phase is followed by a deliver-* phase, the deliver-*phase MUST NOT execute until the pay-* phase returns ok: true. (PIPE-4) If a deliver-*phase is followed by a pay-* phase, the pay-*phase MUST NOT execute until the deliver-* phase returns ok: true. (PIPE-5) Pipelines MAY repeat a phase; each invocation produces independent SettlementEvidence. In v0.1 each repeated pay-* invocation settles the **same** agreement price (`PaymentPhaseInput.amount` = `agreement.terms.price`) — the payment contract carries no per-phase amount override, fee, or split, so a **fee-split** (distinct amounts to distinct payees, e.g. buyer + platform fee) is NOT representable in v0.1 and is a roadmap item (fee-split / multi-payee settlement model). Repetition is for genuinely identical settlements, not for splitting one price across payees.
 
 ### 9.10 Conformance summary
 
@@ -3706,13 +3708,13 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **pay-cross-chain-liquidity-tank.** BridgeOperation lifecycle ("empty" → "pending" → "completed" | "failed"); bridge_id recording; route-in-supported-scope validation.
 - **pay-ap2 / pay-x402.** Mandate-revocation handling; receipt-signature verification.
 - **Delivery phases.** deliver-storage-program with normal and extended-pointer payloads; deliver-entitlement with signature + anchor + scope; deliver-attested-payload composing DACS-2 attestation.
-- **Pipeline (PIPE-1..PIPE-5).** At-least-one-pay + at-least-one-deliver; deterministic ordering; pay-before-deliver ordering; deliver-before-pay ordering; phase repetition.
+- **Pipeline (PIPE-1..PIPE-5).** At-least-one-deliver (pay-* optional — intake-only / out-of-band-settlement listings are valid, reconciled with §6.3.4(8)); deterministic ordering; pay-before-deliver ordering; deliver-before-pay ordering; phase repetition.
 
 ### 14.5 DACS-5 — Verify
 
 - **Session state transitions.** Every `(from → to)` pair MUST be in the §10.3.1 transition table and no other; illegal-pair rejection (e.g. negotiate after commit, ST-1); abort entry from any `*-pending` (ST-3); rate branch and rate-non-fatal (ST-4/ST-5); substrate-failure pause → recorded-pending resume on success and → failed-substrate on timeout (ST-7); every terminal state maps to its §10.3.1 `outcome` (ST-6 + the state→outcome table).
 - **Bundle production.** Two-sided anchoring at role-specific addresses; canonical-form equality between buyer and seller bundles in happy case; domain-separated signature ("dacs-bundle:v1:"); extended-pointer pattern for oversized bundles.
-- **Bundle consumption.** Two-sided lookup; one-sided-bundle → aborted-by-self classification; divergent-bundles → disputed classification.
+- **Bundle consumption.** Two-sided lookup; one-sided-bundle → aborted-by-self classification; divergent-bundles → the consumer fetches both party addresses, detects canonical divergence, and applies the §10.4.3(d) per-party policy (buyer's bundle for buyer-reputation, seller's for seller-reputation). "disputed" is a **consumer-side verdict**, not an `AttestationBundle.outcome` value (the outcome enum has no `disputed` member) — the test asserts the observable §10.4.3(d) behaviour, not an enum label.
 - **Reputation derivation.** All outcome partitions (completed / failed-perm / failed-counterparty / failed-substrate / aborted-by-self / aborted-by-other); party-fault denominator excluding failed-substrate; null vs zero metric distinction; rating aggregation via ratingRefs fetch.
 - **Per-primary-claim keying.** Reputation computed against the bundle party's primaryClaim (sourced from bundle.presentedBy); no inheritance across tiers.
 - **Category-scoped derivation (§10.5.4).** Bundle set filtered to matching `categoryScope` prefix before applying §10.5.1; non-resolving agreementRefs excluded; categoryScope prefix-match rule (exact match OR `category + "."` prefix); a bundle outside the scope is excluded, not counted as a failure; `ReputationHint.categoryScope` accurately reflects the scope used.
@@ -3756,7 +3758,7 @@ The following are not part of v0.1 conformance and SHOULD NOT be tested as such:
 - Multi-party transactions beyond bilateral plus sealed-envelope (deferred).
 - Streaming / continuous-flow rails (deferred).
 - Cross-DACS-version pipelines (deferred).
-- Dispute resolution flows (DACS-X, anticipated).
+- Dispute *resolution* flows (DACS-X, anticipated). Divergence *detection* — the two-sided lookup plus canonical-divergence classification and per-party policy of §10.4.3(d) — **is** in scope for v0.1 conformance; only the resolution layer is deferred.
 
 ## References
 
