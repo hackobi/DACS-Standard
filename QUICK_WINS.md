@@ -29,11 +29,14 @@ remain tracked in [ROADMAP.md](./ROADMAP.md).
 
 ## Implemented in `feat/dacs-quickwins-10pct`
 
-This branch completes 2 of 10 identified quick wins (20%):
+This branch completes 4 of 10 identified quick wins (40%):
 
 - Quick win 1: this inventory.
 - Quick win 2: `scripts/validate-docs.py` plus
   `tests/test_validate_docs.py`.
+- Quick win 3: `conformance/vectors/dacs-v0.1-happy-path.json`.
+- Quick win 4: `scripts/validate_conformance_vectors.py` plus
+  `tests/test_validate_conformance_vectors.py`.
 
 ## Selection criteria
 

@@ -1,0 +1,167 @@
+{
+  "vectorId": "dacs-v0.1-happy-path",
+  "title": "DACS v0.1 five-stage happy path",
+  "dacsVersion": "0.1",
+  "description": "Minimal positive conformance vector covering Identify, Vet, Negotiate, Settle, and Verify artifacts in order.",
+  "artifacts": [
+    {
+      "id": "listing-basic-data-agent",
+      "stage": "DACS-1",
+      "kind": "Listing",
+      "specRefs": [
+        "§6.3",
+        "§14.2"
+      ],
+      "domainSeparator": "dacs1-listing:v1:",
+      "artifact": {
+        "agentId": "did:demos:agent:alice-data-agent",
+        "serviceId": "svc-market-data-v1",
+        "name": "Market Data Snapshot",
+        "description": "Returns a signed market data snapshot for a requested symbol.",
+        "claimRequirements": [
+          {
+            "claimRef": "web2:domain:alice.example",
+            "required": true
+          }
+        ],
+        "supportedNegotiation": [
+          "negotiate-fixed-price"
+        ],
+        "supportedPaymentRails": [
+          "pay-evm-erc20"
+        ],
+        "supportedDelivery": [
+          "deliver-attested-payload"
+        ]
+      },
+      "contentHash": "sha256:c0a88b3ab9187eb5441ea26fba5a8796e3fee320d5b50bb29885ad49522ec0d5"
+    },
+    {
+      "id": "verification-domain-control",
+      "stage": "DACS-2",
+      "kind": "CompositeVerificationRecord",
+      "specRefs": [
+        "§7.7",
+        "§14.3"
+      ],
+      "domainSeparator": "dacs2-verification-record:v1:",
+      "artifact": {
+        "subject": "did:demos:agent:alice-data-agent",
+        "recipeId": "acme-domain-control-v1",
+        "recipeVersion": "1.0.0",
+        "results": [
+          {
+            "claimRef": "web2:domain:alice.example",
+            "method": "acme-domain",
+            "status": "pass",
+            "authority": "https://acme.example/directory"
+          }
+        ],
+        "requiredPassed": true,
+        "verifiedAt": "2026-06-02T00:00:00Z"
+      },
+      "contentHash": "sha256:ff46000b39c3ba775d1ea728456246c9e6716f3bf18f30a5a4b58c210daecd01"
+    },
+    {
+      "id": "agreement-fixed-price",
+      "stage": "DACS-3",
+      "kind": "AgreementDocument",
+      "specRefs": [
+        "§8.5",
+        "§14.4"
+      ],
+      "domainSeparator": "dacs3-agreement:v1:",
+      "artifact": {
+        "jobId": "01HX0000000000000000000000",
+        "pattern": "negotiate-fixed-price",
+        "buyer": "did:demos:agent:bob-buyer",
+        "seller": "did:demos:agent:alice-data-agent",
+        "listingRef": "listing-basic-data-agent",
+        "price": {
+          "amount": "1000000",
+          "asset": "USDC",
+          "decimals": 6,
+          "rail": "pay-evm-erc20"
+        },
+        "delivery": {
+          "phase": "deliver-attested-payload",
+          "format": "application/json"
+        },
+        "expiresAt": "2026-06-03T00:00:00Z"
+      },
+      "contentHash": "sha256:41cc2571bde90d50c509afe543bf8c8908fadd72dc3b1b989ae348726d1a1cac"
+    },
+    {
+      "id": "settlement-erc20-release",
+      "stage": "DACS-4",
+      "kind": "SettlementEvidence",
+      "specRefs": [
+        "§9.4",
+        "§14.5"
+      ],
+      "domainSeparator": "dacs4-settlement-evidence:v1:",
+      "artifact": {
+        "jobId": "01HX0000000000000000000000",
+        "rail": "pay-evm-erc20",
+        "chainId": "eip155:11155111",
+        "txHash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "payer": "0xB0b0000000000000000000000000000000000000",
+        "payee": "0xA11ce00000000000000000000000000000000000",
+        "amount": "1000000",
+        "asset": "USDC",
+        "ok": true,
+        "observedAt": "2026-06-02T00:01:00Z"
+      },
+      "contentHash": "sha256:b18a01fcea06a20d1b4988155e317c9e7ebb44b6e8de887a3736197028116634"
+    },
+    {
+      "id": "attestation-bundle-happy-path",
+      "stage": "DACS-5",
+      "kind": "AttestationBundle",
+      "specRefs": [
+        "§10.4",
+        "§14.6"
+      ],
+      "domainSeparator": "dacs5-bundle:v1:",
+      "artifact": {
+        "jobId": "01HX0000000000000000000000",
+        "state": "completed",
+        "primaryClaim": "did:demos:agent:alice-data-agent",
+        "artifactRefs": [
+          "listing-basic-data-agent",
+          "verification-domain-control",
+          "agreement-fixed-price",
+          "settlement-erc20-release"
+        ],
+        "ratings": [
+          {
+            "from": "did:demos:agent:bob-buyer",
+            "to": "did:demos:agent:alice-data-agent",
+            "score": 5,
+            "dimensions": {
+              "timeliness": 5,
+              "quality": 5
+            }
+          }
+        ],
+        "signedBy": [
+          "did:demos:agent:bob-buyer",
+          "did:demos:agent:alice-data-agent"
+        ],
+        "completedAt": "2026-06-02T00:02:00Z"
+      },
+      "contentHash": "sha256:cfa124665e76e5e037b12ccea1eca27c9e800b6305fdaf4b156f6a8c10b51bc0"
+    }
+  ],
+  "expectedResult": {
+    "verifies": true,
+    "sessionState": "completed",
+    "requiredStages": [
+      "DACS-1",
+      "DACS-2",
+      "DACS-3",
+      "DACS-4",
+      "DACS-5"
+    ]
+  }
+}
