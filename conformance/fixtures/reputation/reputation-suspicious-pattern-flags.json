@@ -1,0 +1,39 @@
+{
+  "expectedCoreMetricsUnchanged": true,
+  "kind": "ReputationRiskCase",
+  "reputationRecord": {
+    "bundleCount": 24,
+    "bundleRefs": [
+      {
+        "contentHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "kind": "storage-program",
+        "locator": "stor:bundle:cluster"
+      }
+    ],
+    "computedAt": 1760100000000,
+    "derivationVersion": "1",
+    "metrics": {
+      "averageBuyerRating": null,
+      "averageSellerRating": 5.0,
+      "completionRate": 1.0,
+      "counterpartyDisputeRate": 0.0,
+      "observedTransactionalVolume": [
+        {
+          "amount": "24",
+          "currency": "USDC"
+        }
+      ]
+    },
+    "partyPrimaryClaim": "key:cccccccc",
+    "suspiciousPatternFlags": [
+      "high-volume-single-counterparty-cluster",
+      "unusually-low-outcome-variance",
+      "rapid-bundle-growth-with-zero-disputes"
+    ],
+    "windowEnd": 1760100000000,
+    "windowStart": 1759990000000
+  },
+  "specRefs": [
+    "\u00a710.5"
+  ]
+}

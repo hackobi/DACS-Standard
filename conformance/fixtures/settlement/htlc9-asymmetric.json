@@ -1,0 +1,34 @@
+{
+  "kind": "SettlementEvidenceCase",
+  "settlementEvidence": {
+    "evidenceVersion": "1",
+    "jobId": "01HTLC9ASYMMETRIC000000000000",
+    "observedAt": 1760000100000,
+    "outcome": "failure",
+    "paymentTxRefs": [
+      {
+        "chainId": 84532,
+        "kind": "evm",
+        "role": "htlc-lock",
+        "txHash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "kind": "solana",
+        "role": "htlc-reveal",
+        "signature": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS"
+      }
+    ],
+    "phase": "pay-cross-chain-htlc",
+    "reason": "dest-revealed-source-unclaimed",
+    "signature": {
+      "algorithm": "ed25519",
+      "signer": "key:orchestrator",
+      "value": "sig-placeholder"
+    }
+  },
+  "specRefs": [
+    "\u00a79.5.4",
+    "\u00a79.7",
+    "\u00a710.3.1"
+  ]
+}

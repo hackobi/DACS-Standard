@@ -19,15 +19,29 @@ small, repeatable check against the DACS v0.1 artifact lifecycle.
 - [`examples/rating-record.json`](./examples/rating-record.json) — a
   machine-readable RatingRecord example for §10.6.
 
+## Production trust-signal fixtures
+
+The repository also includes small shared fixtures outside this vector directory:
+
+- `conformance/fixtures/identity/identity-tier-*.json` — deterministic
+  `identityTier` cases for institutional, verified, and self-declared bundles.
+- `conformance/fixtures/reputation/reputation-suspicious-pattern-flags.json` —
+  advisory `suspiciousPatternFlags` on a ReputationRecord / derivation surface.
+- `conformance/fixtures/settlement/htlc9-asymmetric.json` — the HTLC-9
+  `dest-revealed-source-unclaimed` interim evidence state.
+- `conformance/fixtures/dacsx/dispute-outcome-htlc9-correction.json` — the
+  provisional DACS-X DisputeOutcome seam that emits a correction amendment.
+
 ## Validate locally
 
 From the repository root:
 
 ```bash
 python3 scripts/validate_conformance_vectors.py
+python3 scripts/verify_dacsx_dispute_pack.py
 ```
 
-The validator is stdlib-only. It checks:
+The validators are stdlib-only. The vector validator checks:
 
 - required top-level vector fields
 - exactly ordered five-stage coverage
