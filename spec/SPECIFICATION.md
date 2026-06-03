@@ -100,7 +100,7 @@ A substrate shipping all five can host a full DACS implementation. A substrate t
 ## 6. Demos production mapping
 
 A mapping of which substrate primitives are live today, what extensions are needed for v0.1, and which dependencies are third-party. The mapping applies to every per-stage standard — DACS-1 through DACS-5 — in this paper.
-**Legend.** 🟢 in production today; 🟡 Demos team to add for v0.1; 🔵 third-party (composed, not built by Demos). This legend describes the substrate-primitive status — what the chain ships. Per-recipe and per-rail operational status uses the normative availability field defined in §7.4.5 (recipes) and §9.4.5 (rails). The legend here is informative about substrate features; availability there is normative about specific attestation paths and settlement rails. Earlier drafts conflated the two surfaces by extending this legend to recipes and rails; that conflation has been corrected in v0.1.
+**Legend.** 🟢 in production today; 🟡 Demos team to add for v0.1; 🔵 third-party (composed, not built by Demos). This legend describes the substrate-primitive status — what the chain ships. Per-recipe and per-rail operational status uses the normative availability field defined in §7.4.5 (recipes) and §9.4.4 (rails). The legend here is informative about substrate features; availability there is normative about specific attestation paths and settlement rails. Earlier drafts conflated the two surfaces by extending this legend to recipes and rails; that conflation has been corrected in v0.1.
 
 ### 6.1 SR-1 — Cross-Context Identities (CCI)
 
@@ -394,6 +394,7 @@ The Storage Program at stor-{sha256(subject_cci + ":" + credential-type + ":" + 
 | erc8004:<chainId>:<contract>:<tokenId> | <chainId> is an eip155 chain id as a bare decimal integer (no leading zeros), canonically the CAIP-2 chain id eip155:<chainId>; lowercase 0x-prefixed contract; tokenId is the uint256 token id in decimal, no leading zeros | external EVM agent identity NFT; verified via DACS-2 evm-rpc |
 | domain:<dns> | lowercase, IDNA-encoded | DNS / TLS control proof via DACS-2 domain-tls-control |
 | key:<hex-pubkey> | lowercase, no 0x | self-signed; lowest tier; signing-key only |
+| substrate-validator-set:<substrateId>:<epochOrSetId> | registered substrateId + epoch/set id | not a party identity — the signer of a consensus-backed-proxy / evm-rpc DACS-2 attestation; resolution + roster verification per §7.5 |
 
 **Unknown-scheme handling**
 A reader encountering an unknown scheme MUST: preserve the reference verbatim when forwarding; treat the reference as **unverified** for evaluation purposes; NOT silently accept the reference as satisfying a bundle requirement; log or surface the unknown scheme to the calling agent. A reader MAY decline to engage with a bundle that contains an unknown scheme in a required position.
@@ -1861,7 +1862,7 @@ type NegotiateFixedPriceOutput = PhaseHandlerResult & {
 A listing MAY declare terms.acceptanceModel: "auto-accept", in which case the seller pre-issues a **template acceptance commitment** alongside the listing rather than a per-session signature. The mechanism:
 
 - The seller publishes, at listing-anchor time, a separate AutoAcceptCommitment record: { listingRef, listingContentHash, acceptanceModel: "auto-accept", validUntil, sellerSignature } where sellerSignature is the seller’s signature over the domain-separated payload "dacs-auto-accept-commitment:v1:" || sha256(canonical(commitment)). This commits the seller to auto-accepting any buyer signature against the listed terms within validUntil.
-- At orchestrator time, the orchestrator: (1) verifies the AutoAcceptCommitment is anchored, valid, and unrevoked; (2) constructs the per-session AgreementDocument with derivedFromPattern: "fixed-price"; (3) computes the agreement hash; (4) constructs an auto-accept seller signature: an Ed25519 signature by the seller’s primary key over "dacs-auto-accept-instance:v1:" || agreementHash || autoAcceptCommitmentHash. This instance signature is NOT pre-issued — it MUST be produced live by the seller’s keyholder or by an authorised auto-signer the seller has explicitly delegated to. The pre-issued AutoAcceptCommitment authorises the auto-signer to produce instance signatures within its scope.
+- At orchestrator time, the orchestrator: (1) verifies the AutoAcceptCommitment is anchored, unrevoked, and still valid — including that the per-session commit time (`committedAt`, §8.5.2) is ≤ the commitment's `validUntil`; an expired commitment MUST NOT produce an instance signature; (2) constructs the per-session AgreementDocument with derivedFromPattern: "fixed-price"; (3) computes the agreement hash; (4) constructs an auto-accept seller signature: an Ed25519 signature by the seller’s primary key over "dacs-auto-accept-instance:v1:" || agreementHash || autoAcceptCommitmentHash. This instance signature is NOT pre-issued — it MUST be produced live by the seller’s keyholder or by an authorised auto-signer the seller has explicitly delegated to. The pre-issued AutoAcceptCommitment authorises the auto-signer to produce instance signatures within its scope.
 
 Listings using auto-accept MUST publish the AutoAcceptCommitment alongside the listing, and the buyer’s orchestrator MUST verify the commitment before relying on auto-accept. A pre-issued per-instance signature (signing a placeholder agreement hash) MUST NOT be used; the per-instance signature binds to a specific agreement hash. Sellers operating auto-accept MUST hold the auto-signing key in a system that produces live instance signatures on demand (HSM, TEE, hot wallet with rate-limiting).
 **Substrate:** SR-2 only.
@@ -2422,7 +2423,7 @@ A versioned, anchored set of payment rails. Each rail entry describes one settle
 ```
 type RailDefinition = {
 
-  registryVersion: number
+  railVersion: number
 
   railId: string                       // canonical id; lowercase ASCII; max 64 chars
 
@@ -2436,7 +2437,7 @@ type RailDefinition = {
 
   parameters: Record<string, unknown>  // rail-type-specific
 
-  availability: RailAvailability       // operational status (see §9.4.5)
+  availability: RailAvailability       // operational status (see §9.4.4)
 
   governance: {
     proposedBy: ClaimReference;
@@ -2530,11 +2531,11 @@ The v0.1 registry contains rail entries for the most-used settlement paths in pr
 
 #### 9.4.3 Rail authoring and resolution
 
-A conforming rail author MUST: (RD-1) sign the rail with the registry steward’s signing key over the domain-separated payload "dacs-rail:v1:" || rail_hash per chapter 7§7.7; (RD-2) anchor the rail via SR-2 at the canonical address; (RD-3) specify registryVersion as monotonically increasing per railId; (RD-4) specify supersedes when replacing a prior rail with the same railId; (RD-5) ensure the railType matches the asset and network kinds (an evm-erc20 rail with a Solana asset MUST be rejected).
+A conforming rail author MUST: (RD-1) sign the rail with the registry steward’s signing key over the domain-separated payload "dacs-rail:v1:" || rail_hash per chapter 7§7.7; (RD-2) anchor the rail via SR-2 at the canonical address; (RD-3) specify railVersion as monotonically increasing per railId; (RD-4) specify supersedes when replacing a prior rail with the same railId; (RD-5) ensure the railType matches the asset and network kinds (an evm-erc20 rail with a Solana asset MUST be rejected).
 A consumer MUST resolve a rail by: reading the rail-registry index from dacs4:registry:v0.1; looking up the entry for the agreement’s terms.rail.railId; fetching the rail at the indicated anchor and verifying its content hash and signature; if the agreement pins a specific railVersion, MUST use that version; otherwise MUST use the latest at session start, pinned into the session.
 **Progressive anchoring for early deployments.** The rail registry follows the same progressive anchoring pattern as the DACS-2 recipe registry (§7.4.4). Phase PA-1 (bootstrap): rails shipped as in-code constants. Phase PA-2 (current): rails anchored by the steward (currently KyneSys Labs) under a single signature. Phase PA-3 (future): rails anchored under multi-signature governance if and when a constituted body is established. Implementations MUST disclose which phase they operate in; consumers MUST verify the rail’s anchoring phase against their own trust requirements.
 
-#### 9.4.5 Rail availability (normative)
+#### 9.4.4 Rail availability (normative)
 
 Every RailDefinition MUST declare an availability value, with the same value set and semantics as recipe availability (§7.4.5). The value names the rail’s current operational status — what an orchestrator should actually expect when it tries to settle through this rail. Mapping is direct:
 
@@ -2720,7 +2721,7 @@ type SettlementEvidence = {
 
   attestationRef?: AttestationRef              // for deliver-attested-payload
 
-  // Finality model used for this settlement (optional, payment phases only)
+  // Finality model for this settlement: REQUIRED on a success-outcome payment evidence record (PC-6); absent on delivery evidence and on failure-outcome payment evidence
 
   settlementFinality?: SettlementFinalityRecord
 
@@ -2741,7 +2742,7 @@ type SettlementFinalityRecord = {
 
   model: "block-depth"          // EVM / UTXO: wait for N blocks (finalityBlocks from rail.parameters)
        | "commitment-level"     // Solana: wait for a named commitment (finalityCommitmentLevel from rail.parameters)
-       | "provider-receipt"     // Fiat (AP2) or x402: provider-issued receipt is the finality signal
+       | "provider-receipt"     // Fiat (AP2); also x402 ONLY in the fallback case where the facilitator returns no settlement tx — normally x402 uses "block-depth" on its settlement chain (the settlementTxHash, #28)
        | "htlc-reveal"          // Cross-chain HTLC: on-chain preimage reveal on both legs
        | "liquidity-tank"       // Native bridge liquidity-tank: bridge status transitions to "completed"
 
@@ -2875,7 +2876,7 @@ A listing’s pipeline declares the order of payment and delivery phases. Common
 **x402 payment-receipt forgery.** *Threat:* a server claims payment was received when it was not. *Mitigation:* x402 settles on-chain (a gasless USDC transfer on its settlement chain), so the **primary audit is verifying the anchored `settlementTxHash` against that chain** — exactly like the `evm` rail, and not forgeable by the server or facilitator. The x402 receipt is additionally facilitator-signed; where a `settlementTxHash` is unavailable (a facilitator that does not return it), verification falls back to the facilitator-attested receipt and the audit guarantee for that record is processor-attested rather than chain-verified. Buyer-side x402 wallets SHOULD maintain a local record of submitted payments to detect contested cases.
 **Delivery non-delivery.** *Threat:* seller signals payment received, never delivers. *Mitigation:* outside DACS-4’s remit; this is a DACS-3 / DACS-5 issue (the deliver-* phase MUST return ok: false on missing deliverable; DACS-5 records the failure; reputation impact accrues). Listings handling expensive non-recoverable deliveries SHOULD use escrow pipelines (pay-cross-chain-htlc) where the seller’s payment is contingent on demonstrable delivery.
 **Refund laundering.** *Threat:* sellers issue refunds to clean up failed deliveries without recording failure. *Mitigation:* SettlementAmendment is anchored and signed; DACS-5 bundles include amendments; the audit trail shows both the original (apparently successful) payment and the (later) refund. Reputation derivation in DACS-5 MUST treat refunded sessions appropriately. The inverse attack — a refund amendment anchored against a non-existent or failure-outcome evidence record, or an over-refund beyond the settled amount, fabricating a good-faith unwind or a counterparty-loss signal — is guarded by the AMEND-1 through AMEND-4 amendment-validity constraints in §9.7.1.
-**Decimal-overflow in cross-decimal-system pay paths.** *Threat:* converting a fiat-denominated amount.amount to on-chain integer units overflows or rounds incorrectly. *Mitigation:* PC-1 mandates string-decimal arithmetic with no float. Rail authors MUST specify decimals exactly; phase handlers MUST validate amount.amount precision against rail.asset.decimals (excess precision is an error).
+**Decimal-overflow in cross-decimal-system pay paths.** *Threat:* converting a fiat-denominated amount.amount to on-chain integer units overflows or rounds incorrectly. *Mitigation:* the §9.5.2 / §9.5.3 payment procedures mandate string-decimal arithmetic with no float (e.g. `amount.amount * 10^decimals` computed as string-decimal multiplication), and `PriceTerm.amount` is canonical decimal per CD-1 (§8.5.1). Rail authors MUST specify decimals exactly; phase handlers MUST validate amount.amount precision against rail.asset.decimals (excess precision is an error).
 **Pinned-rail vs latest-rail at settle time.** *Threat:* the rail registry changes between agreement commit and settle execution. *Mitigation:* the rail is pinned at session start (per railRegistryVersion in SessionContext). Settle MUST use the pinned rail definition, even if the registry has since superseded it.
 
 ### 9.14 Phase parameters reference card
@@ -3185,7 +3186,7 @@ type ReputationDerivation = {
 
   metrics: {
 
-    completionRate: number | null              // null when bundleCount == 0
+    completionRate: number | null              // null when party_fault_denom == 0 (bundleCount == 0, or all scoped bundles failed-substrate)
 
     counterpartyDisputeRate: number | null
 
@@ -3230,8 +3231,6 @@ derive(party, bundles, windowStart, windowEnd):
   aborted_by_self := [b for b in scoped where b.outcome == "aborted-by-self"]
 
   aborted_by_other := [b for b in scoped where b.outcome == "aborted-by-other"]
-
-  party_fault_count := |aborted_by_self| + |failed_perm where party_at_fault|
 
   counterparty_fault_count := |aborted_by_other| + |failed_counterparty against party|
 
@@ -3546,10 +3545,10 @@ Every per-chapter security threat, indexed by adversary class and mitigation sta
 | Recipe poisoning | recipe-registry attacker | §7.12 (signed recipes + pinned recipeVersion) | mitigated |
 | Substrate validator capture (SR-3) | substrate validator-set majority | §7.12 (multi-method alternatives) | partial — v0.2 strengthening planned |
 | Authority-endpoint TLS MITM (forged authority response) | network active attacker (PKI compromise) | §7.3.5 (v0.2 validator-body-signed) + §7.4 (multi-method alternatives) | partial — v0.2 strengthening planned, residual in v0.1 |
-| Negative-match fail-open (truncated sanctions list clears a listed party) | malicious infrastructure / lossy fetch | §7.3.5 PSP-5 (completeness floor before a negative `pass`) | mitigated |
+| Negative-match fail-open (truncated sanctions list clears a listed party) | malicious infrastructure / lossy fetch | §7.4.1 PSP-5 (completeness floor before a negative `pass`) | mitigated |
 | Verifiable-presentation replay (verified VC re-presented by a non-holder) | malicious counterparty | §7.3.2 (VP holder-binding to session nonce) | mitigated |
 | HTLC preimage-reveal front-running | network observer / MEV | §9.5.4 (claims are beneficiary-bound — a front-runner cannot redirect funds; ordering/MEV is a chain-level concern, not a DACS theft vector) | mitigated (theft) / residual (ordering) |
-| Rail availability-field poisoning (read before pin) | malicious infrastructure | §9.4.5 (availability pinned from the authoritative rail definition at session start, not a cached/untrusted read) | mitigated |
+| Rail availability-field poisoning (read before pin) | malicious infrastructure | §9.4.4 (availability pinned from the authoritative rail definition at session start, not a cached/untrusted read) | mitigated |
 | Cross-session offer replay (channelId reuse) | malicious counterparty | §8.12 CH-6 (channelId unique per session) | mitigated |
 | Counterparty-graph reconstruction (cleartext primary claims at derivable anchor addresses) | network observer | §12.1 (accepted by design — public audit trail; requires no crypto; encrypted-to-parties anchoring is roadmap) | accepted by design |
 | Vet-attestation disclosure (anchored VerifyResult reveals "party X screened against authority Y → outcome Z") | network observer | §7.5 (public-anchor data minimisation — predicate outcomes only, no raw PII) + §12.1 (scheme:identifier:decision accepted by design) | partial — raw PII minimised; relationship/decision accepted by design |
@@ -3641,7 +3640,7 @@ A single alphabetical glossary across all five per-stage standards, the front ma
 - **RatingRecord.** A signed rating from one party about another. §10.6.
 - **Recipe.** A DACS-2 binding of claim scheme to verification method, parsing rules, and defaults. §7.4.
 - **Recipe availability.** A normative field on every Recipe declaring operational status: live | operator_gated | closed_data | bilateral | mocked | disabled | failed. Verifiers MUST inspect before running. §7.4.5.
-- **Rail availability.** A normative field on every RailDefinition declaring operational status, with the same value set and semantics as recipe availability. Orchestrators MUST inspect before selecting. §9.4.5.
+- **Rail availability.** A normative field on every RailDefinition declaring operational status, with the same value set and semantics as recipe availability. Orchestrators MUST inspect before selecting. §9.4.4.
 - **RFQ (Request For Quote).** DACS-3 bilateral negotiation pattern; bounded multi-turn offer-and-counter. §8.4.2.
 - **Sealed-envelope.** DACS-3 sealed-bid procurement pattern. §8.4.3.
 - **Session.** A per-transaction lifecycle from Identify through Verify.
@@ -3685,7 +3684,7 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **Retry semantics (VP-R1..VP-R4).** Transient retry on error; permanent no-retry; new attestation on each retry; no-retry-on-indeterminate by default; retryOnIndeterminate flag honoured when set.
 - **Caching semantics (VP-C1..VP-C3).** Reuse within validUntil; record-update on reuse; maxAge override of recipe default.
 - **Aggregation.** Each branch of classify_required: missing, all-failing, all-indeterminate, all-errored, mixed-with-pass. oneOf groups: failure vs error vs indeterminate distinction. Precedence: failures > errors > indeterminates when classifying overall.
-- **Recipe and rail availability (§7.4.5, §9.4.5).** Every value in the closed enum produces the conformant orchestrator/verifier behaviour: RAV-1 through RAV-4 for recipes (no silent treatment as live; consumer surfacing; disabled/failed → error in aggregation; alternative availability not inheriting from default); RAV-R1 through RAV-R5 for rails (preflight inspection; no selection of disabled/failed; rail-down-at-settlement-attempt maps to substrate errorClass; RAV-R5 availability read from the authoritative signed/anchored rail definition, not a poisonable cache).
+- **Recipe and rail availability (§7.4.5, §9.4.4).** Every value in the closed enum produces the conformant orchestrator/verifier behaviour: RAV-1 through RAV-4 for recipes (no silent treatment as live; consumer surfacing; disabled/failed → error in aggregation; alternative availability not inheriting from default); RAV-R1 through RAV-R5 for rails (preflight inspection; no selection of disabled/failed; rail-down-at-settlement-attempt maps to substrate errorClass; RAV-R5 availability read from the authoritative signed/anchored rail definition, not a poisonable cache).
 - **Phase contract (VPC-1..VPC-4).** Order (Vet after Identify, before Negotiate); two-sided execution; anchor-before-return; fail-or-indeterminate handling.
 - **Matching algorithm (MA-1..MA-3, §6.3.3).** required/oneOf satisfaction; primaryClaimSelector scheme match (MA-2: presentedBy scheme != selector → REJECT); presentedBy verification (MA-3: primaryClaimSelector set + presentedBy claim unverified, i.e. missing/failing verifiedBy → REJECT, even when the structural scheme matches).
 
