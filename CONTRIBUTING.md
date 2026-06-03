@@ -52,13 +52,21 @@ description so the change is reviewable inline.
 
 ## Validation
 
-For documentation-only changes, run the dependency-free link and anchor validator:
+For documentation-only changes and conformance-vector edits, run the dependency-free validators:
 
 ```sh
+python3 scripts/validate_conformance_vectors.py
 python3 scripts/validate-docs.py
-python3 -m unittest tests/test_validate_docs.py -v
+python3 -m unittest discover tests -v
 ```
 
-The validator checks relative Markdown links and section anchors across the repo.
-Small additive tasks that do not change v0.1 conformance semantics are tracked in
+The vector validator checks machine-readable examples under
+[`conformance/vectors/`](./conformance/vectors/), including happy-path,
+negative-path, IdentityBundle, and RatingRecord fixtures. The docs validator checks
+relative Markdown links and section anchors across the repo. Small additive tasks
+that do not change v0.1 conformance semantics are tracked in
 [`QUICK_WINS.md`](./QUICK_WINS.md).
+
+Issue templates under [`.github/ISSUE_TEMPLATE/`](./.github/ISSUE_TEMPLATE/) mirror
+the feedback format above for spec defects, implementation reports, and editorial
+fixes.

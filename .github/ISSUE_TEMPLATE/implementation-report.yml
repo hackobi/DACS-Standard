@@ -1,0 +1,48 @@
+name: Implementation report
+about: Share results from building against DACS sections or artifacts.
+title: "Implementation report: "
+labels: ["implementation-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Implementation reports are the highest-value feedback for v0.1. Please include the section, artifact / file path, and alternate interpretation or proposed fix when you hit ambiguity.
+  - type: input
+    id: implementation
+    attributes:
+      label: Implementation name / repository
+      placeholder: "agent-commerce-demo / pathos-dacs-ref / your repo"
+    validations:
+      required: true
+  - type: input
+    id: section
+    attributes:
+      label: Specification section
+      placeholder: "§10.4"
+    validations:
+      required: true
+  - type: input
+    id: artifact
+    attributes:
+      label: Artifact or file path
+      placeholder: "AttestationBundle / conformance/vectors/..."
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What you built and what happened
+      description: Include pass/fail status, substrate, rail, method, and relevant logs.
+    validations:
+      required: true
+  - type: textarea
+    id: alternate
+    attributes:
+      label: Alternate interpretation or proposed fix
+      description: If the spec was ambiguous, what interpretation did you choose?
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Links to code, vectors, or evidence

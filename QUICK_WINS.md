@@ -15,21 +15,21 @@ remain tracked in [ROADMAP.md](./ROADMAP.md).
    expected pass/fail outcomes.
 4. [x] Add a small script that recomputes deterministic JSON content hashes for
    the example artifacts.
-5. [ ] Add a CI workflow that runs the documentation and conformance validators
+5. [x] Add a CI workflow that runs the documentation and conformance validators
    on every pull request.
-6. [ ] Add machine-readable JSON examples for the remaining core artifacts named
+6. [x] Add machine-readable JSON examples for the remaining core artifacts named
    in the spec: IdentityBundle, RatingRecord, and negative-path examples.
-7. [ ] Add a glossary index mapping key terms to specification sections.
-8. [ ] Add a rule-ID index for conformance rules such as BP-*, LP-*, SIG-*,
+7. [x] Add a glossary index mapping key terms to specification sections.
+8. [x] Add a rule-ID index for conformance rules such as BP-*, LP-*, SIG-*,
    PC-*, RT-*, RAV-*.
-9. [ ] Add an operational-builder-guide outline for the roadmap's implementation
+9. [x] Add an operational-builder-guide outline for the roadmap's implementation
    and capital/finality topics.
-10. [ ] Add issue templates for spec defects, implementation reports, and
+10. [x] Add issue templates for spec defects, implementation reports, and
     editorial fixes matching CONTRIBUTING.md's preferred report format.
 
 ## Implemented in `feat/dacs-quickwins-10pct`
 
-This branch completes 4 of 10 identified quick wins (40%):
+This branch completes 10 of 10 identified quick wins (100%):
 
 - Quick win 1: this inventory.
 - Quick win 2: `scripts/validate-docs.py` plus
@@ -37,6 +37,20 @@ This branch completes 4 of 10 identified quick wins (40%):
 - Quick win 3: `conformance/vectors/dacs-v0.1-happy-path.json`.
 - Quick win 4: `scripts/validate_conformance_vectors.py` plus
   `tests/test_validate_conformance_vectors.py`.
+- Quick win 5: `.github/workflows/validate.yml` runs validators and unit tests on
+  pull requests.
+- Quick win 6: `conformance/vectors/examples/identity-bundle.json`,
+  `conformance/vectors/examples/rating-record.json`, and
+  `conformance/vectors/dacs-v0.1-negative-paths.json`.
+- Quick win 7: `docs/glossary-index.md` maps key terms to specification sections.
+- Quick win 8: `docs/rule-id-index.md` maps labelled rule families to spec
+  sections and §14 test-plan hooks.
+- Quick win 9: `docs/operational-builder-guide.md` outlines implementation,
+  capital/float, undercapitalised-session, key-custody, and settlement-finality
+  topics.
+- Quick win 10: `.github/ISSUE_TEMPLATE/` includes spec-defect,
+  implementation-report, and editorial-fix templates aligned with
+  `CONTRIBUTING.md`.
 
 ## Selection criteria
 

@@ -1,0 +1,163 @@
+{
+  "vectorId": "dacs-v0.1-negative-paths",
+  "title": "DACS v0.1 negative-path examples",
+  "dacsVersion": "0.1",
+  "description": "Machine-readable examples of artifacts that a conforming implementation is expected to reject or classify as failures without changing normative spec semantics.",
+  "artifacts": [
+    {
+      "id": "identity-bundle-missing-presented-by-claim",
+      "stage": "DACS-1",
+      "kind": "IdentityBundle",
+      "specRefs": [
+        "§6.3.2",
+        "§14.1"
+      ],
+      "domainSeparator": "dacs-bundle-presentation:v1:",
+      "artifact": {
+        "bundleVersion": "1",
+        "presentedBy": "did:demos:agent:not-in-claims",
+        "presentedAt": 1780358400000,
+        "claims": [
+          {
+            "ref": "did:demos:agent:alice-data-agent"
+          }
+        ],
+        "presentation": {
+          "kind": "session-key",
+          "key": "did:key:z6MkBadSessionKey",
+          "signature": "sig:example-invalid"
+        }
+      },
+      "contentHash": "sha256:ed903172907c281f384fa41c18bda8ae765e9b8634708329379878ee5b83d262"
+    },
+    {
+      "id": "verification-required-claim-fails",
+      "stage": "DACS-2",
+      "kind": "VerifyResult",
+      "specRefs": [
+        "§7.5",
+        "§14.2"
+      ],
+      "domainSeparator": "dacs-verifyresult:v1:",
+      "artifact": {
+        "claimRef": "web2:domain:alice.example",
+        "recipeId": "acme-domain-control-v1",
+        "recipeVersion": "1.0.0",
+        "decision": "fail",
+        "authority": "https://acme.example/directory",
+        "verifiedAt": "2026-06-02T00:00:00Z"
+      },
+      "contentHash": "sha256:0a0c3237fba24b31d5a961f4d94a6b363317df99eb5e1fa86fe0fd7c7b91deac"
+    },
+    {
+      "id": "agreement-currency-rail-mismatch",
+      "stage": "DACS-3",
+      "kind": "AgreementDocument",
+      "specRefs": [
+        "§8.5",
+        "§14.3"
+      ],
+      "domainSeparator": "dacs3-agreement:v1:",
+      "artifact": {
+        "jobId": "01HX0000000000000000000099",
+        "pattern": "negotiate-fixed-price",
+        "buyer": "did:demos:agent:bob-buyer",
+        "seller": "did:demos:agent:alice-data-agent",
+        "listingRef": "listing-basic-data-agent",
+        "price": {
+          "amount": "10.00",
+          "asset": "EUR",
+          "decimals": 2,
+          "rail": "pay-evm-erc20"
+        },
+        "delivery": {
+          "phase": "deliver-attested-payload",
+          "format": "application/json"
+        },
+        "expiresAt": "2026-06-03T00:00:00Z"
+      },
+      "contentHash": "sha256:82c3dbbf5ed037ace518cbfb90a8b1525b3f0f602afb22b1a68ae037171d5e1e"
+    },
+    {
+      "id": "settlement-disabled-rail-selected",
+      "stage": "DACS-4",
+      "kind": "SettlementEvidence",
+      "specRefs": [
+        "§9.4.5",
+        "§14.4"
+      ],
+      "domainSeparator": "dacs4-settlement-evidence:v1:",
+      "artifact": {
+        "jobId": "01HX0000000000000000000099",
+        "rail": "pay-evm-erc20",
+        "availability": "disabled",
+        "ok": false,
+        "errorClass": "permanent",
+        "observedAt": "2026-06-02T00:01:00Z"
+      },
+      "contentHash": "sha256:c09a933c25075fab806af6a45d159e6c4df338ff32fbc7f3985a613867a472e0"
+    },
+    {
+      "id": "rating-out-of-range",
+      "stage": "DACS-5",
+      "kind": "RatingRecord",
+      "specRefs": [
+        "§10.6.1",
+        "§14.5"
+      ],
+      "domainSeparator": "dacs-rating:v1:",
+      "artifact": {
+        "ratingVersion": "1",
+        "jobId": "01HX0000000000000000000099",
+        "rater": "did:demos:agent:bob-buyer",
+        "target": "did:demos:agent:alice-data-agent",
+        "targetRole": "seller",
+        "value": 6,
+        "ratedAt": 1780358520000,
+        "signature": {
+          "algorithm": "ed25519",
+          "signer": "did:demos:agent:bob-buyer",
+          "value": "sig:example-invalid-rating"
+        }
+      },
+      "contentHash": "sha256:c5d38ca53e7e74f372ace8cf079a63c30d4494a7327cd0b618dfbb9d4c3d0b26"
+    }
+  ],
+  "expectedResult": {
+    "verifies": false,
+    "expectedFailures": [
+      {
+        "artifactId": "identity-bundle-missing-presented-by-claim",
+        "ruleRefs": [
+          "BP-3",
+          "BR-2"
+        ]
+      },
+      {
+        "artifactId": "verification-required-claim-fails",
+        "ruleRefs": [
+          "BR-3"
+        ]
+      },
+      {
+        "artifactId": "agreement-currency-rail-mismatch",
+        "ruleRefs": [
+          "PC-5"
+        ]
+      },
+      {
+        "artifactId": "settlement-disabled-rail-selected",
+        "ruleRefs": [
+          "RAV-R2"
+        ]
+      },
+      {
+        "artifactId": "rating-out-of-range",
+        "ruleRefs": [
+          "RT-1",
+          "RT-2"
+        ]
+      }
+    ]
+  }
+}

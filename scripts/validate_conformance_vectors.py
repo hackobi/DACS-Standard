@@ -121,8 +121,12 @@ def validate_vector(path: Path) -> list[str]:
         errors.append(fail(path, f"artifacts MUST cover stages in order: {EXPECTED_STAGES}; got {stages}"))
 
     expected = data.get("expectedResult", {})
-    if not isinstance(expected, dict) or expected.get("verifies") is not True:
-        errors.append(fail(path, "expectedResult.verifies MUST be true for happy-path vectors"))
+    if not isinstance(expected, dict) or not isinstance(expected.get("verifies"), bool):
+        errors.append(fail(path, "expectedResult.verifies MUST be a boolean"))
+    elif expected.get("verifies") is False:
+        failures = expected.get("expectedFailures")
+        if not isinstance(failures, list) or not failures:
+            errors.append(fail(path, "negative-path vectors MUST list expectedResult.expectedFailures"))
 
     return errors
 

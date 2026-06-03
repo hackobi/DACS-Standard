@@ -82,6 +82,10 @@ substrate-to-primitive mapping and production status. The unified SDK is [`@kyne
 | [`spec/SPECIFICATION.md`](./spec/SPECIFICATION.md) | **The standard.** Full normative specification, DACS-1 … DACS-5, with conformance rules, error classes, threat model, and conformance test plan. |
 | [`docs/builders-guide.md`](./docs/builders-guide.md) | A technical case for builders — what problems DACS solves and how to evaluate it honestly. |
 | [`docs/flow-trace.md`](./docs/flow-trace.md) | End-to-end happy path as SDK-mapped pseudocode, with a sequence diagram and a verified SDK-compatibility note. |
+| [`docs/glossary-index.md`](./docs/glossary-index.md) | Non-normative index mapping key terms to their specification sections. |
+| [`docs/rule-id-index.md`](./docs/rule-id-index.md) | Non-normative index mapping labelled conformance rule families to spec sections and §14 test-plan hooks. |
+| [`docs/operational-builder-guide.md`](./docs/operational-builder-guide.md) | Outline for implementation operations, capital/float planning, key custody, and settlement-finality topics. |
+| [`conformance/vectors/`](./conformance/vectors/) | Machine-readable happy-path, negative-path, and core artifact example JSON fixtures with a stdlib validator. |
 | [`CHANGELOG.md`](./CHANGELOG.md) | Normative change history. Start here if you implemented against an earlier draft. |
 | [`ROADMAP.md`](./ROADMAP.md) | Anticipated follow-on work (informative). What's deferred beyond v0.1 and why — no committed dates. |
 | [`QUICK_WINS.md`](./QUICK_WINS.md) | Small, additive repository improvements that contributors can land without changing v0.1 conformance semantics. |
@@ -121,6 +125,18 @@ wrong. The highest-signal feedback names a section (§), a file path, and an alt
 interpretation. See [CONTRIBUTING.md](./CONTRIBUTING.md), open an
 [issue](https://github.com/DACS-Agent-commerce/DACS-Standard/issues), or start a
 [discussion](https://github.com/DACS-Agent-commerce/DACS-Standard/discussions).
+
+## Local validation
+
+All repository tooling is dependency-free Python stdlib plus GitHub Actions for CI:
+
+```sh
+python3 scripts/validate_conformance_vectors.py
+python3 scripts/validate-docs.py
+python3 -m unittest discover tests -v
+```
+
+The pull-request workflow runs the same documentation and conformance checks.
 
 ## Governance
 
