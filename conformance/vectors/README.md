@@ -19,9 +19,11 @@ small, repeatable check against the DACS v0.1 artifact lifecycle.
 - [`examples/rating-record.json`](./examples/rating-record.json) — a
   machine-readable RatingRecord example for §10.6.
 
-## Production trust-signal fixtures
+## Roadmap/prototype fixtures
 
-The repository also includes small shared fixtures outside this vector directory:
+The repository also includes small shared fixtures outside this vector directory.
+These are non-normative prototype artifacts for roadmap items; they do not add new
+v0.1 conformance requirements:
 
 - `conformance/fixtures/identity/identity-tier-*.json` — deterministic
   `identityTier` cases for institutional, verified, and self-declared bundles.

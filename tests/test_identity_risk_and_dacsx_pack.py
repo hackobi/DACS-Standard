@@ -5,18 +5,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "spec" / "SPECIFICATION.md"
+ROADMAP = ROOT / "ROADMAP.md"
 VERIFY_DACSX = ROOT / "scripts" / "verify_dacsx_dispute_pack.py"
 
 
 class IdentityRiskAndDacsXPackTests(unittest.TestCase):
-    def test_spec_defines_identity_tier_derivation_and_reputation_flags(self):
+    def test_v01_spec_does_not_absorb_future_risk_or_dispute_improvements(self):
         text = SPEC.read_text(encoding="utf-8")
-        self.assertIn('identityTier?: "institutional" | "verified" | "self-declared"', text)
-        self.assertIn("Identity tier derivation", text)
-        self.assertIn("Only verified claims count toward identityTier", text)
-        self.assertIn("suspiciousPatternFlags?: string[]", text)
-        self.assertIn("MUST NOT change core reputation derivation", text)
-        self.assertIn("high-volume-single-counterparty-cluster", text)
+        self.assertNotIn('identityTier?: "institutional" | "verified" | "self-declared"', text)
+        self.assertNotIn("suspiciousPatternFlags?: string[]", text)
+        self.assertNotIn("DACS-X interface seam (non-normative pack)", text)
+
+    def test_roadmap_tracks_identity_reputation_and_dacsx_improvements(self):
+        text = ROADMAP.read_text(encoding="utf-8")
+        self.assertIn("`identityTier` on IdentityBundle (#103)", text)
+        self.assertIn("`suspiciousPatternFlags` on ReputationRecord + min-bundleCount gating advice (#101)", text)
+        self.assertIn("DACS-X (dispute / execution-verification)", text)
+        self.assertIn("DACS-X shared dispute fixtures / verifier pack (#99)", text)
+        self.assertIn("HTLC-9 correction-amendment", text)
+        self.assertIn("non-normative", text)
 
     def test_identity_tier_fixture_set_is_machine_readable(self):
         cases = {
