@@ -201,41 +201,23 @@ Every phase handler in the stack consumes a SessionContext and returns a PhaseHa
 
 ```
 type SessionContext = {
-
   jobId: string
-
   listingRef: { listingId: string; version: number; contentHash: string }
-
   recipeRegistryVersion: number             // DACS-2 registry pinned at session start
-
   railRegistryVersion: number               // DACS-4 registry pinned at session start
-
   parties: SessionParty[]
-
   priorPhaseOutputs: Record<string, unknown> // accumulated contextDelta from completed phases
-
   signer: SubstrateSigner                   // substrate-specific signing capability
-
   startedAt: number                         // unix ms
-
 }
-
 type PhaseHandlerResult = {
-
   ok: boolean
-
   reason?: string                           // when !ok
-
   txRefs?: ChainTxRef[]                     // chain references produced by this invocation
-
   explorerUrls?: string[]                   // human-readable handles, parallel to txRefs
-
   contextDelta?: Record<string, unknown>    // merged into SessionRecord.PhaseEntry.contextDelta
-
   attestationRef?: AttestationRef           // anchored evidence reference
-
   errorClass?: "permanent" | "transient" | "counterparty" | "substrate" | "settlement-atomicity"
-
 }
 ```
 
@@ -500,31 +482,18 @@ A listing declares which bundles it will accept.
 
 ```
 type BundleRequirement = {
-
   requirementVersion: "1"
-
   required: ClaimRequirement[]         // all MUST be satisfied
-
   oneOf?: ClaimRequirement[][]         // EACH inner group MUST be satisfied (AND across groups); a group is satisfied when ≥1 of its members is satisfied (OR within a group)
-
   preferredPresentation?: "siwd" | "sr1-root" | "per-claim" | "session-key" | "any"
-
   primaryClaimSelector?: string        // scheme whose identifier MUST be `presentedBy`
-
 }
-
 type ClaimRequirement = {
-
   scheme: string                       // e.g. "lei"
-
   verificationRequired: boolean
-
   maxAge?: number                      // seconds; tightens (never widens) the effective freshness window — overrides the recipe default downward only
-
   recipeVersion?: number               // pin a specific DACS-2 recipe version (§7.4.1); else latest-at-session-start
-
   parameters?: Record<string, unknown> // scheme-specific
-
 }
 ```
 
@@ -607,107 +576,56 @@ The listing is the canonical contract for a transaction.
 
 ```
 type Listing = {
-
   // Versioning
-
   dacsVersion: "1"
-
   listingVersion: number               // monotonic per listingId, starts at 1
-
   listingId: string                    // unique per seller; URL-safe ASCII; max 128 chars
-
   requiredCapabilities?: SubstrateRequirement[]
-
   // Seller
-
   seller: {
-
     identity: IdentityBundle           // seller's own bundle
-
     displayName: string                // max 200 chars
-
     publicEndpoint?: string            // optional HTTPS endpoint
-
   }
-
   // Offering
-
   offering: {
-
     title: string                      // max 200 chars
-
     description: string                // max 2000 chars
-
     category: string                   // dot-delimited (e.g. "data.finance.fx")
-
     tags: string[]                     // max 16 tags, max 32 chars each
-
     deliverable: DeliverableSpec       // per DACS-4
-
     extendedDescriptionUrl?: string
-
     extendedDescriptionHash?: string
-
   }
-
   // Buyer requirement
-
   buyerRequirement: BundleRequirement
-
   // Pipeline of phases to execute, per DACS-3/4/5
-
   pipeline: PhaseStep[]                // non-empty, ordered
-
   // Pricing and accepted rails, per DACS-4
-
   pricing: PricingSpec
-
   acceptedRails?: PaymentRailRef[]      // OPTIONAL: required and non-empty IF pipeline contains any pay-* phase
-
   // Terms
-
   terms: ListingTerms
-
   // Validity window
-
   validity: {
-
     notBefore: number                  // unix ms
-
     notAfter?: number                  // unix ms; absent => no expiry
-
   }
-
   // Listing-level signature
-
   signature: ListingSignature
-
 }
-
 type SubstrateRequirement =
-
   | "SR-1" | "SR-2" | "SR-3" | "SR-4" | "SR-5"
-
 type ListingTerms = {
-
   termsOfServiceUrl?: string
-
   termsOfServiceHash?: string
-
   jurisdictions?: string[]             // ISO 3166-1 alpha-2 codes
-
   conflictOfLawsRule?: "buyer-jurisdiction" | "seller-jurisdiction" | "rule-ref:<uri>"
-
   deadlineSecAfterCommit?: number
-
   acceptanceModel?: "auto-accept"      // §8.4.1; when set, the seller pre-issues an AutoAcceptCommitment instead of a per-session signature
-
   cancellationPolicy?: "none" | "pre-commit" | "with-fee"   // v0.1: informational only — see note below
-
   retentionYears?: number
-
   transcriptDisclosurePolicy?: "none" | "encrypted-anchored-recommended" | "encrypted-anchored-required"
-
 }
 ```
 
@@ -715,13 +633,9 @@ type ListingTerms = {
 
 ```
 type ListingSignature = {
-
   algorithm: "ed25519" | "ecdsa-secp256k1" | "sr1-aggregate"
-
   signer: ClaimReference               // MUST appear in seller.identity.claims
-
   value: string                        // signature over the domain-separated listing payload ("dacs-listing:v1:" || listing_hash), per §6.3.4
-
 }
 ```
 
@@ -730,35 +644,20 @@ DeliverableSpec, PricingSpec, and PaymentRailRef are normatively defined in chap
 
 ```
 type PhaseStep = {
-
   kind: PhaseType                           // closed v0.1 set below
-
   parameters?: Record<string, unknown>      // per-`kind` shape defined in the owning spec
-
 }
-
 type PhaseType =
-
   // DACS-2
-
   | "vet-credentials"
-
   // DACS-3
-
   | "negotiate-fixed-price" | "negotiate-rfq" | "negotiate-sealed-envelope" | "commit-agreement"
-
   // DACS-4
-
   | "pay-evm-erc20" | "pay-solana-spl"
-
   | "pay-cross-chain-htlc" | "pay-cross-chain-liquidity-tank"
-
   | "pay-ap2" | "pay-x402"
-
   | "deliver-storage-program" | "deliver-entitlement" | "deliver-attested-payload"
-
   // DACS-5
-
   | "rate"
 ```
 
@@ -808,41 +707,23 @@ The .well-known/agent.json document published at the agent’s domain is extende
 
 ```
 {
-
   // ... existing A2A agent-card fields ...
-
   "dacs": {
-
     "dacsVersion": "1",
-
     "listings": {
-
       "indexUrl": "https://example.com/.well-known/dacs/listings.json",
-
       "indexHash": "sha256-...",
-
       "anchor": {
-
         "kind": "storage-program",
-
         "address": "dacs1-index:..."
-
       }
-
     },
-
     "identityClaims": [
-
       "lei:984500ABCDEF12345678",
-
       "domain:example.com",
-
       "erc8004:1:0x...:42"
-
     ]
-
   }
-
 }
 ```
 
@@ -850,41 +731,23 @@ The .well-known/agent.json document published at the agent’s domain is extende
 
 ```
 type ListingIndex = {
-
   indexVersion: "1"
-
   generatedAt: number
-
   seller: ClaimReference
-
   listings: ListingIndexEntry[]
-
 }
-
 type ListingIndexEntry = {
-
   listingId: string
-
   version: number
-
   contentHash: string
-
   anchor: { kind: string; locator: string }
-
   summary: {
-
     title: string
-
     category: string
-
     tags: string[]
-
     priceHint?: string
-
   }
-
   status: "active" | "revoked"
-
 }
 ```
 
@@ -899,47 +762,26 @@ A DACS catalog is an off-chain index aggregating listings across many sellers, p
 
 ```
 GET /api/dacs/listings
-
   Query parameters:
-
     category=<dot-delimited prefix>
-
     tag=<repeatable>
-
     credential=<scheme>                # listings whose buyerRequirement requires this scheme
-
     primaryClaim=<scheme>              # listings whose seller.identity.presentedBy uses this scheme
-
     rail=<railId>                      # listings accepting this rail
-
     priceMax=<decimal>                 # advisory; uses summary.priceHint
-
     minCompletionRate=<float>          # advisory; filters on reputationHint.completionRate when present
-
     minRating=<float>                  # advisory; filters on reputationHint.averageSellerRating when present
-
     cursor=<opaque>                    # pagination
-
     limit=<int, default 50, max 200>
-
   Response:
-
     { "listings": ListingSummary[], "cursor": <opaque>?, "total"?: <int> }
-
 GET /api/dacs/listings/{listingId}/{version}
-
   Response: Listing (canonical JSON)
-
 GET /api/dacs/sellers/{primaryClaimRef}
-
   Response: {
-
     "listings": ListingSummary[],
-
     "identity": IdentityBundle (catalog-cached, last-seen),
-
     "reputation": ReputationSummary (per DACS-5)
-
   }
 ```
 
@@ -1089,15 +931,10 @@ Every method MUST: (CM-1) accept inputs as specified in its sub-section; (CM-2) 
 
 ```
 type VCMethodInput = {
-
   recipe: Recipe
-
   identifier: string                   // claim identifier (must match VC subject)
-
   presentation: VerifiablePresentation
-
   issuerAllowList?: ClaimReference[]
-
 }
 ```
 
@@ -1107,15 +944,10 @@ type VCMethodInput = {
 
 ```
 type TLSNotaryMethodInput = {
-
   recipe: Recipe
-
   identifier: string
-
   proof: TLSNotaryProof                // MPC-derived TLS session commitment + notary signature
-
   sessionTemplate?: string
-
 }
 ```
 
@@ -1125,17 +957,11 @@ type TLSNotaryMethodInput = {
 
 ```
 type ZKTLSMethodInput = {
-
   recipe: Recipe
-
   identifier: string
-
   provider: "reclaim" | "pluto" | string
-
   programId: string
-
   proof: ZKTLSProof
-
 }
 ```
 
@@ -1145,23 +971,14 @@ type ZKTLSMethodInput = {
 
 ```
 type ConsensusProxyMethodInput = {
-
   recipe: Recipe
-
   identifier: string
-
   endpoint: {
-
     method: "GET" | "POST"
-
     urlTemplate: string                // e.g. "https://api.gleif.org/api/v1/lei-records/{identifier}"
-
     headers?: Record<string, string>
-
     body?: string
-
   }
-
 }
 ```
 
@@ -1176,19 +993,12 @@ type ConsensusProxyMethodInput = {
 
 ```
 type OAuthAttestedMethodInput = {
-
   recipe: Recipe
-
   identifier: string
-
   provider: string                     // e.g. "google", "github"
-
   scopes: string[]
-
   maxTokenAgeSec: number               // recipe-required
-
   attestation: OAuthAttestationEnvelope
-
 }
 ```
 
@@ -1198,19 +1008,12 @@ type OAuthAttestedMethodInput = {
 
 ```
 type EVMRPCMethodInput = {
-
   recipe: Recipe
-
   identifier: string
-
   chainId: number
-
   contract: string                     // 0x address
-
   method: string                       // contract method name or selector
-
   args?: unknown[]                     // ABI-encoded arguments
-
 }
 ```
 
@@ -1220,17 +1023,11 @@ type EVMRPCMethodInput = {
 
 ```
 type DomainTLSControlMethodInput = {
-
   recipe: Recipe
-
   identifier: string                   // the domain
-
   challengeType: "http-01" | "dns-01" | "tls-alpn-01"
-
   challenge: Challenge
-
   response: ChallengeResponse
-
 }
 ```
 
@@ -1240,15 +1037,10 @@ type DomainTLSControlMethodInput = {
 
 ```
 type SelfSignedMethodInput = {
-
   recipe: Recipe
-
   identifier: string                   // hex public key
-
   signature: string                    // signature over the claim assertion
-
   assertion: string                    // canonical bytes signed
-
 }
 ```
 
@@ -1529,69 +1321,37 @@ The document the vet-credentials phase produces.
 
 ```
 type CompositeVerificationRecord = {
-
   recordVersion: "1"
-
   jobId: string                               // DACS-5 session id
-
   evaluatedParty: ClaimReference              // counterparty's primary identity claim
-
   bundleHash: string                          // sha256 of the IdentityBundle this Vet ran against
-
   requirementHash: string                     // sha256 of the listing's BundleRequirement
-
   freshness: VerifyResultRef[]                // re-verifications of pre-attested claims
-
   supplementary: SupplementarySignal[]
-
   dealSpecific: VerifyResultRef[]
-
   overallDecision: "pass" | "fail" | "indeterminate" | "error"
-
   warnings?: VerificationWarning[]            // advisory only; MUST NOT affect overallDecision (WN-1)
-
   generatedAt: number
-
   signature: ComponentSignature               // signed by the verifier
-
 }
-
 type VerifyResultRef = {
-
   anchor: { kind: "storage-program" | "ipfs" | "https"; locator: string }
-
   contentHash: string
-
   recipeVersion: number
-
 }
-
 type SupplementarySignal = {
-
   source: "dacs-5" | "cci-nomis" | "cci-ethos" | "cci-humanpassport" | "external" | string
-
   signalType: string                          // e.g. "completion-rate", "dispute-rate", "rating-avg"
-
   value: number | string
-
   observedAt: number
-
   attestation?: AttestationRef                // required for "external" sources
-
 }
-
 type VerificationWarning = {
-
   claimRef: ClaimReference                     // the claim (canonical scheme+identifier) that produced the warning
-
   code: WarningCode                            // enumerated; see below
-
   retryable: boolean                           // whether the condition is expected to be transient
-
   suggestedRetryAfterMs?: number               // advisory per-authority hint; does NOT override recipe-level backoff/retryBudget (WN-4)
-
 }
-
 type WarningCode =
   | "AUTHORITY_UNAVAILABLE"                     // 5xx, timeout, connection failure (maps to a VP-R1 transient error)
   | "AUTHORITY_RATE_LIMITED"                    // 429 or equivalent (VP-R1 transient)
@@ -1706,39 +1466,22 @@ In v0.1, the composite record carries a single verifier signature. Multi-party c
 
 ```
 type VetCredentialsInput = {
-
   jobId: string
-
   actor: "buyer" | "seller"
-
   bundleToVet: IdentityBundle
-
   requirement: BundleRequirement
-
   verifierIdentity: IdentityBundle
-
   sessionContext: SessionContext
-
   recipeRegistryVersion: number
-
   attempt: number
-
 }
-
 type VetCredentialsOutput = PhaseHandlerResult & {
-
   contextDelta: {
-
     "vet-credentials": {
-
       compositeRecord: AttestationRef
-
       overallDecision: "pass" | "fail" | "indeterminate" | "error"
-
     }
-
   }
-
 }
 ```
 
@@ -1853,27 +1596,16 @@ Other substrates MAY implement SR-4 via TEE-based confidential channels, zk-base
 
 ```
 type ChannelMessage = {
-
   channelId: string                    // substrate-derived; opaque to DACS-3; MUST be unique per session (see CH-6)
-
   sequence: number                     // monotonic per channel, starts at 1
-
   sender: ClaimReference               // author's primary claim
-
   sentAt: number                       // unix ms
-
   type: "offer" | "counter" | "accept" | "reject"
-
        | "sealed-envelope-commit" | "sealed-envelope-reveal"
-
        | "abort"
-
   body: unknown                        // type-specific. Sealed-envelope commit/reveal bodies are defined in §8.4.3; RFQ offer/counter/accept/reject bodies are implementation-defined (the authoritative agreed terms live only in the signed AgreementDocument, not the channel body)
-
   refs?: { repliesTo?: number }
-
   signature: ChannelMessageSignature   // see below
-
 }
 ```
 
@@ -1896,39 +1628,22 @@ Acceptance of the listing’s posted terms. No private channel required.
 
 ```
 type NegotiateFixedPriceInput = {
-
   jobId: string
-
   listingHash: string                  // pinned listing's content hash
-
   listingRef: { listingId: string; version: number }
-
   buyerBundle: IdentityBundle          // post-Vet
-
   sellerBundle: IdentityBundle         // post-Vet
-
   buyerVetRef: AttestationRef          // from DACS-2
-
   sellerVetRef: AttestationRef         // from DACS-2
-
   sessionContext: SessionContext
-
 }
-
 type NegotiateFixedPriceOutput = PhaseHandlerResult & {
-
   contextDelta?: {   // present only on ok:true; a failed phase returns a bare PhaseHandlerResult (no agreement)
-
     "negotiate-fixed-price": {
-
       agreementHash: string
-
       agreementRef: AttestationRef
-
     }
-
   }
-
 }
 ```
 
@@ -1948,55 +1663,30 @@ Bounded multi-turn offer-and-counter exchange in a private channel.
 
 ```
 type NegotiateRfqInput = {
-
   jobId: string
-
   listingHash: string
-
   listingRef: { listingId: string; version: number }
-
   buyerBundle: IdentityBundle
-
   sellerBundle: IdentityBundle
-
   buyerVetRef: AttestationRef
-
   sellerVetRef: AttestationRef
-
   parameters: {
-
     maxTurns: number                   // hard cap; default 6; MUST be >= 2
-
     timeoutSec: number                 // per-turn timeout
-
     channelSubnet?: string             // SR-4 channel id; substrate-specific
-
     rfqInitiator?: "buyer" | "seller"  // who sends the first offer; default "buyer"
-
   }
-
   sessionContext: SessionContext
-
 }
-
 type NegotiateRfqOutput = PhaseHandlerResult & {
-
   contextDelta?: {   // present only on ok:true; a failed phase (reject / maxTurns / timeout) returns a bare PhaseHandlerResult
-
     "negotiate-rfq": {
-
       agreementHash: string
-
       agreementRef: AttestationRef
-
       turnCount: number
-
       channelTranscriptRef?: AttestationRef  // optional; member-only-decryptable
-
     }
-
   }
-
 }
 ```
 
@@ -2009,57 +1699,31 @@ Sealed-bid procurement: all bidders submit hash-committed bids before a deadline
 
 ```
 type NegotiateSealedEnvelopeInput = {
-
   jobId: string
-
   listingHash: string
-
   listingRef: { listingId: string; version: number }
-
   buyerBundles: IdentityBundle[]       // all bidders' bundles
-
   sellerBundle: IdentityBundle         // listing publisher
-
   buyerVetRefs: AttestationRef[]
-
   sellerVetRef: AttestationRef
-
   parameters: {
-
     commitDeadline: number             // unix ms; MUST be > now
-
     revealWindow: number               // seconds after commitDeadline; MUST be >= 60
-
     selectionRule: "lowest-price" | "highest-price" | "first-acceptable" | "rule-ref:<contentHash>:<uri>"
-
     channelSubnet?: string
-
   }
-
   sessionContext: SessionContext
-
 }
-
 type NegotiateSealedEnvelopeOutput = PhaseHandlerResult & {
-
   contextDelta?: {   // present only on ok:true; a failed phase (no winning bid) returns a bare PhaseHandlerResult
-
     "negotiate-sealed-envelope": {
-
       agreementHash: string
-
       agreementRef: AttestationRef
-
       winningBidderClaim: ClaimReference
-
       revealedBidRefs: AttestationRef[]
-
       losingBidderClaims: ClaimReference[]
-
     }
-
   }
-
 }
 ```
 
@@ -2068,13 +1732,9 @@ type NegotiateSealedEnvelopeOutput = PhaseHandlerResult & {
 The body of a sealed-envelope-reveal message (the revealed `bid`, and therefore the value committed to in step 2) MUST conform to:
 ```
 type SealedBid = {
-
   price: PriceTerm                     // the bid amount and currency
-
   deliverable?: DeliverableRef         // what the bidder undertakes to deliver
-
   terms?: Record<string, unknown>      // additional pattern- or listing-specific terms
-
 }
 ```
 The `bid` over which `bidHash` is computed in step (2) is exactly this `SealedBid` object in its RFC 8785 JCS canonical form. All bids in a single session MUST be denominated in the listing-declared currency; a revealed bid whose `price.currency` does not match MUST be excluded from selection.
@@ -2238,33 +1898,19 @@ The DACS-3 phase that anchors the agreement hash on the public chain.
 
 ```
 type CommitAgreementInput = {
-
   jobId: string
-
   agreement: AgreementDocument
-
   listingRef: { listingId: string; version: number; contentHash: string }
-
   sessionContext: SessionContext
-
 }
-
 type CommitAgreementOutput = PhaseHandlerResult & {
-
   contextDelta: {
-
     "commit-agreement": {
-
       agreementHash: string
-
       anchorTxRef: TxRef
-
       committedAt: number
-
     }
-
   }
-
 }
 ```
 
@@ -2272,21 +1918,13 @@ type CommitAgreementOutput = PhaseHandlerResult & {
 
 ```
 type CommitmentRecord = {
-
   dacsVersion: "1"
-
   jobId: string
-
   agreementHash: string
-
   listingRef: { listingId: string; version: number; contentHash: string }
-
   parties: ClaimReference[]          // primary claims of signing parties
-
   pattern: "fixed-price" | "rfq" | "sealed-envelope"
-
   committedAt: number
-
 }
 ```
 
@@ -2299,19 +1937,12 @@ Negotiation channels produce a transcript: the ordered sequence of signed messag
 
 ```
 type ChannelTranscript = {
-
   transcriptVersion: "1"
-
   channelId: string
-
   members: ClaimReference[]
-
   messages: ChannelMessage[]
-
   generatedAt: number
-
   signatures: TranscriptSignature[]
-
 }
 ```
 
@@ -2501,23 +2132,14 @@ A versioned, anchored set of payment rails. Each rail entry describes one settle
 
 ```
 type RailDefinition = {
-
   railVersion: number
-
   railId: string                       // canonical id; lowercase ASCII; max 64 chars
-
   railType: "evm-erc20" | "solana-spl" | "cross-chain-htlc" | "cross-chain-liquidity-tank" | "ap2" | "x402"
-
   asset: AssetSpec                     // what is being transferred
-
   network: NetworkSpec                 // where it lives
-
   phaseHandler: PhaseType              // which pay-* phase handles it
-
   parameters: Record<string, unknown>  // rail-type-specific
-
   availability: RailAvailability       // operational status (see §9.4.4)
-
   governance: {
     proposedBy: ClaimReference;
     acceptedAt: number;
@@ -2527,63 +2149,34 @@ type RailDefinition = {
     deprecated?: boolean;
     deprecationReason?: string                              // required when deprecated is true
   }
-
   signature: RailSignature             // steward's signature (see §9.4.3)
-
 }
-
 type RailAvailability =
-
   | "live"            // settlement path runs end-to-end against the network today
-
   | "operator_gated"  // requires per-operator credential, key, registration, or licensed-agent setup
-
   | "closed_data"     // network or asset access not publicly available (e.g., permissioned chain)
-
   | "bilateral"       // requires per-relationship agreement between counterparties
-
   | "mocked"          // settlement path stubbed; not a production rail
-
   | "disabled"        // rail present but the steward has marked it not-for-use
-
   | "failed"          // rail's underlying network or asset path is currently broken
-
 type AssetSpec =
-
   | { kind: "erc20"; chainId: number; contract: string; symbol: string; decimals: number }
-
   | { kind: "spl"; cluster: "mainnet" | "devnet" | "testnet"; mint: string; symbol: string; decimals: number }
-
   | { kind: "native-evm"; chainId: number; symbol: string; decimals: number }
-
   | { kind: "native-solana"; cluster: "mainnet" | "devnet" | "testnet"; symbol: "SOL"; decimals: 9 }
-
   | { kind: "fiat-via-ap2"; isoCurrency: string; provider: string }
-
   | { kind: "stablecoin-cross-chain"; canonicalSymbol: string; routes: CrossChainRoute[] }
-
 type NetworkSpec =
-
   | { kind: "evm"; chainId: number; rpcAttestation: "consensus-backed-proxy" | "evm-rpc" }
-
   | { kind: "solana"; cluster: "mainnet" | "devnet" | "testnet" }
-
   | { kind: "ap2-provider"; providerEndpoint: string }
-
   | { kind: "x402-resource"; resourceBaseUrl: string }
-
   | { kind: "cross-chain"; mechanism: "htlc" | "liquidity-tank" | "substrate-native" }
-
 type CrossChainRoute = {
-
   sourceChainId: number | string
-
   destChainId: number | string
-
   htlcContracts?: { source: string; dest: string }
-
   liquidityTankIds?: string[]
-
 }
 ```
 
@@ -2648,37 +2241,21 @@ Every pay-* phase handler MUST:
 
 ```
 type PaymentPhaseInput = {
-
   jobId: string
-
   agreement: AgreementDocument         // pinned at commit-agreement
-
   rail: RailDefinition                 // pinned at session start
-
   payer: {
-
     bundleHash: string
-
     primaryClaim: ClaimReference
-
     payingKey: ClaimReference          // MUST appear in payer's bundle.claims
-
   }
-
   payee: {
-
     bundleHash: string
-
     primaryClaim: ClaimReference
-
     payeeAddress: string               // rail-specific destination
-
   }
-
   amount: PriceTerm                    // from agreement.terms.price; rail-validated
-
   sessionContext: SessionContext
-
 }
 ```
 
@@ -2897,25 +2474,15 @@ Refunds are not a separate phase type in v0.1. A refund is modelled as a Settlem
 
 ```
 type SettlementAmendment = {
-
   amendmentVersion: "1"
-
   jobId: string
-
   amendsEvidenceRef: AttestationRef    // points to the SettlementEvidence being amended
-
   amendmentType: "refund" | "partial-refund" | "correction"
-
   refundAmount?: PriceTerm
-
   refundTxRefs?: ChainTxRef[]
-
   reason: string
-
   observedAt: number
-
   signature: ComponentSignature        // signed by the refunding party (typically seller)
-
 }
 ```
 
@@ -3030,79 +2597,42 @@ The live, mutable state document an orchestrator maintains during a session.
 
 ```
 type SessionRecord = {
-
   recordVersion: "1"
-
   jobId: string                              // ULID or substrate-equivalent
-
   state: SessionState
-
   listingRef: { listingId: string; version: number; contentHash: string }
-
   parties: SessionParty[]                    // buyer + seller (+ optionally orchestrator)
-
   pipeline: PhaseStep[]
-
   phaseResults: PhaseEntry[]                 // one per executed phase
-
   startedAt: number                          // unix ms
-
   lastUpdatedAt: number
-
   endedAt?: number                           // set on terminal state
-
   recipeRegistryVersion: number              // DACS-2 registry pinned at session start
-
   railRegistryVersion: number                // DACS-4 registry pinned at session start
-
   amendments?: AttestationRef[]              // refunds and other amendments
-
 }
-
 type SessionState =
-
   | "draft"
-
   | "vet-pending" | "vet-completed" | "vet-failed"
-
   | "negotiate-pending" | "negotiate-completed" | "negotiate-failed"
-
   | "commit-pending" | "commit-completed" | "commit-failed"
-
   | "settle-pending" | "settle-asymmetric" | "settle-completed" | "settle-failed"
-
   | "rate-pending" | "rate-completed"
-
   | "finalised"
-
   | "aborted-by-self" | "aborted-by-other"
-
   | "substrate-failure-paused" | "failed-substrate"
-
 type SessionParty = {
-
   role: "buyer" | "seller" | "orchestrator"
-
   bundleHash: string                         // sha256 of the verified IdentityBundle
-
   primaryClaim: ClaimReference               // bundle.presentedBy
-
   vetRecordRef?: AttestationRef              // post-Vet
-
 }
-
 type PhaseEntry = {
-
   index: number                              // position in pipeline
-
   step: PhaseStep
-
   invokedAt: number
-
   result: PhaseHandlerResult
-
   contextDelta: Record<string, unknown>      // merged into running context
-
 }
 ```
 
@@ -3251,19 +2781,12 @@ Bundles MUST fit within the substrate’s storage-cap soft limit (128 KB on Demo
 
 ```
 type BundleExtendedPointer = {
-
   bundleVersion: "1"
-
   pointerKind: "extended"
-
   fullBundleUrl: string
-
   fullBundleContentHash: string
-
   segmentRefs?: AttestationRef[]              // optional segmented anchoring
-
   signature: ComponentSignature
-
 }
 ```
 
@@ -3282,37 +2805,21 @@ A deterministic function from a set of attestation bundles to a small set of hea
 
 ```
 type ReputationDerivation = {
-
   derivationVersion: "1"
-
   partyPrimaryClaim: ClaimReference            // the party being scored
-
   windowStart: number                          // unix ms
-
   windowEnd: number                            // unix ms
-
   bundleCount: number
-
   metrics: {
-
     completionRate: number | null              // null when party_fault_denom == 0 (bundleCount == 0, or all reconciled bundles failed-substrate)
-
     counterpartyDisputeRate: number | null
-
     averageBuyerRating: number | null
-
     averageSellerRating: number | null
-
     observedTransactionalVolume: PriceTerm[]   // sum of agreement.terms.price, by currency
-
   }
-
   computedAt: number
-
   windowingBasis: "finalisedAt" | "sr2-anchor-timestamp"   // which clock the §10.5.1 window was applied against; re-derivation MUST use the same one (§10.5.3 determinism receipt)
-
   bundleRefs: AttestationRef[]                 // exactly the reconciled set (§10.5.1), in canonical ascending-contentHash order (§10.5.3 determinism receipt)
-
 }
 ```
 
@@ -3501,27 +3008,16 @@ A DACS-5 phase that produces structured ratings between parties at session end.
 
 ```
 type RatingRecord = {
-
   ratingVersion: "1"
-
   jobId: string
-
   rater: ClaimReference                        // primary claim of the rating party
-
   target: ClaimReference                       // primary claim of the rated party
-
   targetRole: "buyer" | "seller"
-
   value: number                                // 1..5 inclusive integer
-
   freeText?: string                            // optional; max 1000 chars
-
   dimensions?: Record<string, number>          // optional per-dimension scores (timeliness, communication, etc.)
-
   ratedAt: number
-
   signature: ComponentSignature
-
 }
 ```
 
