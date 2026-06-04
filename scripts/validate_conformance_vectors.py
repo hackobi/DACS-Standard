@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,18 @@ REQUIRED_ARTIFACT = {
     "artifact",
     "contentHash",
 }
+DOMAIN_RE = re.compile(r'"(dacs[-a-z0-9]*:v1:)"')
+
+
+def load_registered_domain_separators(root: Path = ROOT) -> set[str]:
+    spec_text = (root / "spec" / "SPECIFICATION.md").read_text(encoding="utf-8")
+    start_marker = "The v0.1 registry of domain separators is closed:"
+    end_marker = "**Payload shape — single-hash vs composite.**"
+    start = spec_text.find(start_marker)
+    end = spec_text.find(end_marker, start)
+    if start == -1 or end == -1:
+        return set()
+    return set(DOMAIN_RE.findall(spec_text[start:end]))
 
 
 def canonical_json(value: Any) -> bytes:
@@ -146,8 +159,11 @@ def validate_vector(path: Path) -> list[str]:
             errors.append(fail(path, f"{artifact_id}: specRefs MUST be non-empty § references"))
 
         separator = artifact["domainSeparator"]
+        registry = load_registered_domain_separators(ROOT)
         if not isinstance(separator, str) or not separator.endswith(":v1:"):
             errors.append(fail(path, f"{artifact_id}: domainSeparator SHOULD end with ':v1:'"))
+        elif registry and separator not in registry:
+            errors.append(fail(path, f"{artifact_id}: domainSeparator is not registered in §7.7: {separator}"))
 
         expected_hash = sha256_uri(artifact["artifact"])
         if artifact["contentHash"] != expected_hash:

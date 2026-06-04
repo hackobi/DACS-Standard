@@ -41,6 +41,9 @@ From the repository root:
 
 ```bash
 python3 scripts/validate_conformance_vectors.py
+python3 scripts/validate_domain_separators.py
+python3 scripts/validate_rule_ids.py
+python3 scripts/validate_spec_tables.py
 python3 scripts/verify_dacsx_dispute_pack.py
 ```
 
@@ -50,7 +53,7 @@ The validators are stdlib-only. The vector validator checks:
 - exactly ordered five-stage coverage
 - per-artifact required fields
 - `§`-style spec references
-- domain separators ending in `:v1:`
+- registered §7.7 domain separators
 - deterministic `sha256:` content hashes over each artifact payload
 
 ## Scope

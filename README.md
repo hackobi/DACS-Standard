@@ -132,11 +132,15 @@ All repository tooling is dependency-free Python stdlib plus GitHub Actions for 
 
 ```sh
 python3 scripts/validate_conformance_vectors.py
+python3 scripts/validate_domain_separators.py
+python3 scripts/validate_rule_ids.py
+python3 scripts/validate_spec_tables.py
 python3 scripts/validate-docs.py
 python3 -m unittest discover tests -v
 ```
 
-The pull-request workflow runs the same documentation and conformance checks.
+The pull-request workflow runs the same documentation, registry, rule-ID,
+spec-table, conformance-vector, and unit-test checks.
 
 ## Governance
 

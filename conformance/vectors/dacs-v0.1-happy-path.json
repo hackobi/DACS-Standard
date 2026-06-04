@@ -12,7 +12,7 @@
         "§6.3",
         "§14.2"
       ],
-      "domainSeparator": "dacs1-listing:v1:",
+      "domainSeparator": "dacs-listing:v1:",
       "artifact": {
         "agentId": "did:demos:agent:alice-data-agent",
         "serviceId": "svc-market-data-v1",
@@ -44,7 +44,7 @@
         "§7.7",
         "§14.3"
       ],
-      "domainSeparator": "dacs2-verification-record:v1:",
+      "domainSeparator": "dacs-verifyresult:v1:",
       "artifact": {
         "subject": "did:demos:agent:alice-data-agent",
         "recipeId": "acme-domain-control-v1",
@@ -70,7 +70,7 @@
         "§8.5",
         "§14.4"
       ],
-      "domainSeparator": "dacs3-agreement:v1:",
+      "domainSeparator": "dacs-agreement:v1:",
       "artifact": {
         "jobId": "01HX0000000000000000000000",
         "pattern": "negotiate-fixed-price",
@@ -99,7 +99,7 @@
         "§9.4",
         "§14.5"
       ],
-      "domainSeparator": "dacs4-settlement-evidence:v1:",
+      "domainSeparator": "dacs-evidence:v1:",
       "artifact": {
         "jobId": "01HX0000000000000000000000",
         "rail": "pay-evm-erc20",
@@ -122,7 +122,7 @@
         "§10.4",
         "§14.6"
       ],
-      "domainSeparator": "dacs5-bundle:v1:",
+      "domainSeparator": "dacs-bundle:v1:",
       "artifact": {
         "jobId": "01HX0000000000000000000000",
         "state": "completed",

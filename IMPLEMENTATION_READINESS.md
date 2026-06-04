@@ -30,6 +30,23 @@ This branch completes 10 of 10 identified implementation-readiness items (100%):
 - Item 9: `docs/operational-builder-guide.md` outlines implementation, capital/float, undercapitalised-session, key-custody, and settlement-finality topics.
 - Item 10: `.github/ISSUE_TEMPLATE/` includes spec-defect, implementation-report, and editorial-fix templates aligned with `CONTRIBUTING.md`.
 
+## Follow-on hardening in this branch
+
+The branch also carries narrow repository-health hardening that preserves v0.1
+semantics:
+
+- `scripts/validate_domain_separators.py` catches drift between quoted
+  `dacs...:v1:` prefixes in the spec and the closed §7.7 registry.
+- `scripts/validate_rule_ids.py` catches undefined labelled-rule references and
+  keeps `docs/rule-id-index.md` aligned with rule families defined in the spec.
+- `scripts/validate_spec_tables.py` smoke-tests selected registry tables for
+  duplicate or malformed rows.
+- `conformance/vectors/dacs-v0.1-negative-paths.json` remains a canonical
+  negative-path vector set and now uses registered domain separators so the
+  intended failures stay focused on the ruleRefs under `expectedResult`.
+- `conformance/fixtures/` remains non-normative roadmap/prototype material and
+  is excluded from default canonical vector validation.
+
 ## Selection criteria
 
 An implementation-readiness item should be:

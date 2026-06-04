@@ -56,17 +56,36 @@ For documentation-only changes and conformance-vector edits, run the dependency-
 
 ```sh
 python3 scripts/validate_conformance_vectors.py
+python3 scripts/validate_domain_separators.py
+python3 scripts/validate_rule_ids.py
+python3 scripts/validate_spec_tables.py
 python3 scripts/validate-docs.py
 python3 -m unittest discover tests -v
 ```
 
 The vector validator checks machine-readable examples under
 [`conformance/vectors/`](./conformance/vectors/), including happy-path,
-negative-path, IdentityBundle, and RatingRecord fixtures. The docs validator checks
+negative-path, IdentityBundle, and RatingRecord fixtures. The domain-separator,
+rule-ID, and spec-table validators catch registry drift, undefined labelled-rule
+references, and malformed registry rows before review. The docs validator checks
 relative Markdown links and section anchors across the repo. Additive validation,
 example, and contributor-support work that does not change v0.1 conformance
 semantics is tracked in
 [`IMPLEMENTATION_READINESS.md`](./IMPLEMENTATION_READINESS.md).
+
+## v0.1 hardening vs roadmap growth
+
+Keep pull requests narrowly scoped:
+
+- **Good v0.1 hardening:** broken links/anchors, malformed tables, undefined
+  labelled-rule references, registry drift, incorrect fixture metadata, or
+  dependency-free validators that preserve existing conformance semantics.
+- **Roadmap work:** new artifact fields, new phase types, new payment rails,
+  expanded privacy/dispute semantics, new conformance obligations, or anything
+  that changes what a v0.1 implementation must accept or reject.
+- **Prototype fixtures:** shared fixtures under `conformance/fixtures/` are
+  non-normative unless a future steward explicitly promotes them to canonical
+  vectors under `conformance/vectors/`.
 
 Issue templates under [`.github/ISSUE_TEMPLATE/`](./.github/ISSUE_TEMPLATE/) mirror
 the feedback format above for spec defects, implementation reports, and editorial

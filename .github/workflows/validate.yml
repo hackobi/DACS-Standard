@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -26,6 +30,12 @@ jobs:
 
       - name: Validate domain separators
         run: python3 scripts/validate_domain_separators.py
+
+      - name: Validate rule IDs
+        run: python3 scripts/validate_rule_ids.py
+
+      - name: Validate selected spec tables
+        run: python3 scripts/validate_spec_tables.py
 
       - name: Validate documentation links
         run: python3 scripts/validate-docs.py

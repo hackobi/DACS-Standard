@@ -13,7 +13,10 @@ class ImplementationReadinessArtifactTests(unittest.TestCase):
         self.assertIn("pull_request", text)
         self.assertIn("python3 scripts/validate_conformance_vectors.py", text)
         self.assertIn("python3 scripts/validate_domain_separators.py", text)
+        self.assertIn("python3 scripts/validate_rule_ids.py", text)
+        self.assertIn("python3 scripts/validate_spec_tables.py", text)
         self.assertIn("python3 scripts/validate-docs.py", text)
+        self.assertIn("concurrency:", text)
         self.assertIn("python3 -m unittest discover tests -v", text)
 
     def test_glossary_index_links_key_terms_to_spec_sections(self):

@@ -23,6 +23,17 @@ def run_validator(*extra_args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def load_vector_validator():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("validate_conformance_vectors", SCRIPT)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class ConformanceVectorValidationTests(unittest.TestCase):
     def test_happy_path_vector_file_exists_and_is_json_object(self):
         self.assertTrue(VECTORS.exists(), "expected canonical v0.1 happy-path conformance vector")
@@ -40,14 +51,17 @@ class ConformanceVectorValidationTests(unittest.TestCase):
         stages = [artifact["stage"] for artifact in data["artifacts"]]
         self.assertEqual(stages, ["DACS-1", "DACS-2", "DACS-3", "DACS-4", "DACS-5"])
 
-    def test_artifacts_have_stable_content_hashes_and_spec_refs(self):
+    def test_artifacts_have_stable_content_hashes_spec_refs_and_registered_domains(self):
         data = json.loads(VECTORS.read_text())
+        validator = load_vector_validator()
+        registry = validator.load_registered_domain_separators(ROOT)
         for artifact in data["artifacts"]:
             with self.subTest(artifact=artifact["id"]):
                 self.assertTrue(artifact["contentHash"].startswith("sha256:"))
                 self.assertEqual(len(artifact["contentHash"].removeprefix("sha256:")), 64)
                 self.assertTrue(artifact["specRefs"])
                 self.assertTrue(all(ref.startswith("§") for ref in artifact["specRefs"]))
+                self.assertIn(artifact["domainSeparator"], registry)
 
     def test_vector_readme_documents_how_to_run_validation(self):
         text = INDEX.read_text()

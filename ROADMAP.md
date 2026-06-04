@@ -123,7 +123,7 @@ version-stamp which DACS version it reflects.
 | `pathos-dacs-ref` | Live (third-party) | PATH-OS Labs' independent implementation (DACS-1 publisher, DACS-2 GLEIF verifier, DACS-5 envelope-receipt verifier CLI) — the empirical third-party-implementability evidence (§11.3). |
 | §14 conformance test vectors | In progress | Machine-runnable vectors for the §14 conformance plan, so implementers can self-check. Grows as contributor work (e.g. DACS-X) produces cases. |
 | Cross-substrate portability test | In progress | Demonstrate an unmodified `verifyBundle` end-to-end on a non-Demos substrate (a filesystem-backed SR-2 candidate has been exercised) — the artifact-level proof behind the §11.3 portability claim. |
-| DACS-X shared dispute fixtures / verifier pack (#99) | Prototype | Non-normative fixture and verifier pack for anticipated DACS-X shapes, including dispute outcomes, HTLC-9 asymmetric-settlement evidence, and HTLC-9 correction-amendment close-out. Keeps implementer experiments aligned without adding new v0.1 specification rules. |
+| DACS-X shared dispute fixtures / verifier pack (#99) | Prototype | Non-normative fixture and verifier pack for anticipated DACS-X shapes, including dispute outcomes, HTLC-9 asymmetric-settlement evidence, and HTLC-9 correction-amendment close-out. Keeps implementer experiments aligned without adding new v0.1 specification rules; prototype files remain under `conformance/fixtures/` and are excluded from canonical §14 vector validation unless later promoted by the steward. |
 
 ---
 

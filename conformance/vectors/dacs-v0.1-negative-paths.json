@@ -57,7 +57,7 @@
         "§8.5",
         "§14.3"
       ],
-      "domainSeparator": "dacs3-agreement:v1:",
+      "domainSeparator": "dacs-agreement:v1:",
       "artifact": {
         "jobId": "01HX0000000000000000000099",
         "pattern": "negotiate-fixed-price",
@@ -86,7 +86,7 @@
         "§9.4.4",
         "§14.4"
       ],
-      "domainSeparator": "dacs4-settlement-evidence:v1:",
+      "domainSeparator": "dacs-evidence:v1:",
       "artifact": {
         "jobId": "01HX0000000000000000000099",
         "rail": "pay-evm-erc20",
