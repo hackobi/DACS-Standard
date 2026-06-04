@@ -478,7 +478,7 @@ type BundleRequirement = {
 
   required: ClaimRequirement[]         // all MUST be satisfied
 
-  oneOf?: ClaimRequirement[][]         // at least one inner group MUST be satisfied
+  oneOf?: ClaimRequirement[][]         // EACH inner group MUST be satisfied (AND across groups); a group is satisfied when ≥1 of its members is satisfied (OR within a group)
 
   preferredPresentation?: "siwd" | "sr1-root" | "per-claim" | "session-key" | "any"
 
@@ -1579,8 +1579,14 @@ aggregate(record, requirement):
 
     if not any(find_passing(record, cr.scheme) for cr in group):
 
-      # Distinguish error vs indeterminate vs hard miss for the group
-      # (error before indeterminate, matching the global precedence below)
+      # A oneOf group is satisfied iff ≥1 member passes (OR within the group).
+      # When none pass, classify the group by whether it could STILL be satisfied.
+      # Precedence WITHIN a oneOf group is error > indeterminate > fail — deliberately
+      # the OPPOSITE of the required-claim/global precedence (fail > error > indeterminate):
+      # in an OR group a retryable error or a pending indeterminate alternative means the
+      # group is NOT yet conclusively unsatisfiable, so it MUST NOT be reported as a hard
+      # fail (which would terminate a vet a retry could still satisfy). Only when every
+      # member hard-fails is the group a conclusive fail.
 
       if any(find_error(record, cr.scheme) for cr in group):
 
@@ -1594,7 +1600,9 @@ aggregate(record, requirement):
 
         failures.append("oneOf group: no claim satisfied")
 
-  # Precedence: failures > errors > indeterminates
+  # Cross-accumulator precedence (across ALL required claims and oneOf groups): failures > errors > indeterminates.
+  # This is fail-first because a single hard-failed REQUIRED claim dooms the whole requirement (AND), regardless of
+  # any retryable oneOf group. (It is distinct from the within-a-oneOf-group precedence above, which is error-first.)
 
   if failures: return "fail", failures
 
@@ -3765,7 +3773,7 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **ParserSpec semantics (PSP-1..PSP-5).** Match-predicate evaluation per format (jsonPath/selector/xPath/matcher); decision mapping (parse-fail → error not fail; negative-match inversion via `negativeMatch`); `indeterminateOn` predicates evaluated before the match predicate → indeterminate; dataMap extraction recorded without changing the decision; deterministic parsing with no script execution / sub-resource fetch / redirect following; **PSP-5 negative-match completeness floor — a truncated/partial full-list download MUST NOT return `pass` ("not listed"); completeness (record-count / sentinel / Content-Length) confirmed before any negative clear, else indeterminate.**
 - **Retry semantics (VP-R1..VP-R4).** Transient retry on error; permanent no-retry; new attestation on each retry; no-retry-on-indeterminate by default; retryOnIndeterminate flag honoured when set.
 - **Caching semantics (VP-C1..VP-C3).** Reuse within the effective `validUntil ?? (verifiedAt + defaultMaxAgeSec)` window (defaultMaxAgeSec from the recipe at the result's recipeVersion — the fallback only when validUntil is absent; same window as the §6.3.2 freshness gate); record-update on reuse; maxAge tightens (never widens) the recipe default.
-- **Aggregation.** Each branch of classify_required: missing, all-failing, all-indeterminate, all-errored, mixed-with-pass. oneOf groups: failure vs error vs indeterminate distinction. Precedence: failures > errors > indeterminates when classifying overall.
+- **Aggregation.** Each branch of classify_required: missing, all-failing, all-indeterminate, all-errored, mixed-with-pass. oneOf groups use the OR-semantics within-group precedence **error > indeterminate > fail** (a group with a `fail` member AND a retryable `error` member, none passing, classifies as `error` — NOT `fail` — since a retry could still satisfy it; only an all-hard-fail group is a conclusive `fail`). The cross-accumulator precedence across all required claims + oneOf groups is failures > errors > indeterminates (a hard-failed required claim dooms the requirement regardless of any retryable oneOf group).
 - **Recipe and rail availability (§7.4.5, §9.4.4).** Every value in the closed enum produces the conformant orchestrator/verifier behaviour: RAV-1 through RAV-4 for recipes consumer-side (no silent treatment as live; consumer surfacing; disabled/failed → error in aggregation; alternative availability not inheriting from default) and RAV-5 through RAV-7 steward-side (emergency revision on failure; availability transitions are signed/anchored revisions; availability is per-recipe-version); RAV-R1 through RAV-R5 for rails (preflight inspection; no selection of disabled/failed; rail-down-at-settlement-attempt maps to substrate errorClass; RAV-R5 availability read from the authoritative signed/anchored rail definition, not a poisonable cache).
 - **Phase contract (VPC-1..VPC-4).** Order (Vet after Identify, before Negotiate); two-sided execution; anchor-before-return; fail-or-indeterminate handling.
 - **Matching algorithm (MA-1..MA-3, §6.3.3).** required/oneOf satisfaction; primaryClaimSelector scheme match (MA-2: presentedBy scheme != selector → REJECT); presentedBy verification (MA-3: primaryClaimSelector set + presentedBy claim unverified, i.e. missing/failing verifiedBy → REJECT, even when the structural scheme matches).
