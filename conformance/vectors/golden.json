@@ -175,7 +175,7 @@
       "nonCanonicalAmount": "fail",
       "unknownBundle": "fail"
     },
-    "inputs": "constructed deterministically in conformance/run.ts from the seeds above; divergent-bundle refs point to conformance/fixtures/attestation-bundle-0004.json + attestation-bundle-0004-seller.json; HTLC-9 bundle ref points to conformance/fixtures/attestation-bundle-htlc9.json"
+    "inputs": "constructed deterministically in github.com/mj-deving/dacs-verify conformance/run.ts from the seeds above; divergent-bundle refs point to conformance/fixtures/attestation-bundle-0004.json + attestation-bundle-0004-seller.json; HTLC-9 bundle ref points to conformance/fixtures/attestation-bundle-htlc9.json"
   },
   "disclosure": {
     "status": "golden — reference-verifier-accepted (verifyBundle) + byte-stable",
@@ -211,7 +211,7 @@
       "malformedKey": "error",
       "transcriptUnsigned": "fail"
     },
-    "inputs": "constructed deterministically in conformance/run.ts from the seeds above; dispute record points to conformance/fixtures/attestation-bundle-0004.json + attestation-bundle-0004-seller.json"
+    "inputs": "constructed deterministically in github.com/mj-deving/dacs-verify conformance/run.ts from the seeds above; dispute record points to conformance/fixtures/attestation-bundle-0004.json + attestation-bundle-0004-seller.json"
   },
   "settlement": {
     "status": "golden — reference-verifier-accepted + byte-stable",
