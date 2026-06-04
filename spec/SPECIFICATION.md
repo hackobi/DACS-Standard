@@ -2583,7 +2583,7 @@ Every RailDefinition MUST declare an availability value, with the same value set
 
 ### 9.5 Payment phases
 
-The v0.1 closed set. Each is a PhaseType from chapter 6’s closed enumeration, with a phase-handler contract conforming to chapter 5’s SessionContext / PhaseHandlerResult.
+The v0.1 closed set. Each is a PhaseType from chapter 6’s closed enumeration, with a phase-handler contract conforming to §B.5’s SessionContext / PhaseHandlerResult.
 
 #### 9.5.1 Common contract
 
@@ -3537,7 +3537,7 @@ DACS does not standardise the substrate. The substrate-capability statements (SR
 
 #### 11.1.5 Composition stance
 
-DACS composes with the existing open ecosystem and does not seek to replace standards that already work. Where existing standards have gaps relevant to agent commerce (negotiation patterns, end-to-end audit), DACS specifies new standards as narrowly as possible, with explicit substrate dependencies. The composed-standards table in chapter 8 (front matter) is the comprehensive list of touchpoints; when an underlying standard updates, the corresponding DACS standard’s registry entry updates in the next minor version.
+DACS composes with the existing open ecosystem and does not seek to replace standards that already work. Where existing standards have gaps relevant to agent commerce (negotiation patterns, end-to-end audit), DACS specifies new standards as narrowly as possible, with explicit substrate dependencies. The composed-standards table in §C is the comprehensive list of touchpoints; when an underlying standard updates, the corresponding DACS standard’s registry entry updates in the next minor version.
 
 ### 11.2 Follow-on topics
 
