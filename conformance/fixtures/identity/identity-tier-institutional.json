@@ -10,9 +10,12 @@
         "issuedAt": 1760000000000,
         "ref": "lei:529900T8BM49AURSDO55",
         "verifiedBy": {
-          "contentHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-          "kind": "storage-program",
-          "locator": "stor:verify:lei-529900T8BM49AURSDO55"
+          "anchor": {
+            "kind": "storage-program",
+            "locator": "stor-verify-lei-529900T8BM49AURSDO55"
+          },
+          "contentHash": "79c2f815bb577ffe4625db7f91ce90cec4de2f9cc48c6689c996f2fae89a0ea8",
+          "recipeVersion": 1
         }
       }
     ],
