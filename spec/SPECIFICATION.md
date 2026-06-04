@@ -470,6 +470,30 @@ A conforming bundle producer MUST: (BP-1) produce JCS-canonical serialisation fo
 A conforming bundle reader MUST: (BR-1) recompute the bundle hash from canonical form before signature check; (BR-2) reject a bundle whose presentation signature does not verify; (BR-3) reject a bundle in which a required (per listing) claim has a missing or invalid verifiedBy when verificationRequired = true; (BR-4) treat claims with unknown schemes as unverified; (BR-5) when the listing sets primaryClaimSelector, reject a bundle whose presentedBy claim is not itself verified-and-fresh (missing/failing verifiedBy, or stale per the §6.3.2 freshness gate), even when its scheme matches the selector — see the §6.3.3 match() step that enforces this, preventing tier-laundering where an unverified or stale primary claim rides on separately-verified required claims.
 **Selective disclosure (scope note).** v0.1 provides no per-claim selective-disclosure mechanism at the bundle layer: there is no per-claim blinding, no commitment-with-open-on-demand, and no proof-of-possession-without-disclosure for a claim a listing did not require. A verifier that receives a bundle sees every claim in `claims[]`, and the `presentedBy` primary claim is always disclosed and is the cross-session correlator used for reputation and audit (§6.4 Rationale, §6.3.4). The DACS-2 zkTLS / TLSNotary methods (§7.3.3 tlsnotary, §7.3.4 zktls) protect the secret *inside* a claim's verification; they do NOT conceal *which* claims a party holds from a counterparty. The only minimisation available in v0.1 is presenter-side: a presenter MAY publish a bundle containing only the claims a given listing requires, accepting that the primary claim remains linkable across presentations. Implementers MUST NOT treat DACS-1 + a privacy-preserving DACS-2 method as an end-to-end selective-disclosure guarantee. Blinded / minimised-claim presentation is a named follow-on item (§11.2.7).
 
+#### 6.3.2.1 Identity tier derivation (optional, deterministic)
+
+An optional `identityTier` signal MAY be computed from an `IdentityBundle` to give downstream systems a single-word summary of identity quality. It is a derived convenience over the claim set, not a new trust primitive; the load-bearing facts remain the individual `BundleClaim.verifiedBy` references.
+
+**The tier is never trusted as self-reported.** A conformant reader MUST derive it deterministically from the bundle's claims and MUST ignore (and recompute over) any self-asserted `identityTier` value a presenter places in the bundle or its metadata. Only a **verified** claim — a `BundleClaim` whose `verifiedBy` resolves to a `decision == "pass"` VerifyResult that is **fresh** per the §6.3.2 effective-window gate — counts toward tier elevation; a missing, failing, or stale `verifiedBy` does not.
+
+**Derivation rule (normative).** A conformant reader MUST compute `identityTier` in this priority order:
+
+1. If `claims[]` contains at least one **verified** claim whose `ref.scheme` is an authority-issued regulatory scheme (`lei`, `finra-crd`, `sam-uei`, `fedramp`, `cmmc`, `naics` — the top tier of the §6.3.2 presentedBy ordering), the tier is `"institutional"`.
+2. Else if `claims[]` contains at least one **verified** claim of any other scheme (an ERC-8004 / W3C DID / platform identifier / signing key carrying a passing-and-fresh `verifiedBy`), the tier is `"verified"`.
+3. Otherwise (no verified claim — only self-asserted or stale claims), the tier is `"self-declared"`.
+
+Institutional precedence is strict: a bundle holding both a verified `lei:` and a verified `did:` derives `"institutional"`. The three values are exactly the collapse of the four-level §6.3.2 tier ordering into {authority-issued} → institutional, {DID-with-proof, platform} → verified, {plain key / unverified} → self-declared, so the tier and the presentedBy-selection prose cannot disagree.
+
+| Value | Meaning | Example |
+|-------|---------|---------|
+| `institutional` | Backed by a regulated / high-assurance entity identifier with real-world cost | verified `lei:`, `finra-crd:`, `sam-uei:` |
+| `verified` | A non-authority identity carrying a passing-and-fresh DACS-2 verification | `did:` or `key:` with a verified `verifiedBy` |
+| `self-declared` | Raw cryptographic identity, no passing-and-fresh verification | plain `key:` / `did:` with no (or stale) `verifiedBy` |
+
+**Relationship to DACS-5.** `identityTier` is a creation-time signal about identity *quality*; a behavioural-reputation signal about conduct *after* transactions begin (e.g. a `suspiciousPatternFlags` field, a roadmap candidate) is an orthogonal dimension and SHOULD remain a separate field, not be blended into a single score.
+
+**Conformance — identity tier derivation (IT-1..IT-3).** A reader that computes `identityTier` MUST: (IT-1) derive the tier from verified-and-fresh claims only, using the priority rule above; (IT-2) ignore any self-asserted `identityTier` value and recompute; (IT-3) produce the same tier as any other conforming reader for the same `IdentityBundle`.
+
 #### 6.3.3 Bundle requirement schema
 
 A listing declares which bundles it will accept.
@@ -3802,6 +3826,13 @@ This chapter sketches the test categories an implementer should cover to claim c
 - **Listing publisher (LP-1..LP-4).** Sign-with-domain-separator, anchor, version monotonicity, revocation marker publication.
 - **Listing reader (LR-1..LR-3).** Validation-order halt-on-first-failure (one test per validation step), revoked-listing refusal, size-cap rejection.
 - **Discovery.** well-known parser; catalog endpoint shape; anchor cross-check from ListingSummary.
+- **Identity tier derivation (IT-1..IT-3, §6.3.2.1).** Six vectors confirming deterministic derivation from verified-and-fresh claims (a "verified" claim = a `BundleClaim` whose `verifiedBy` resolves to a `decision == "pass"`, in-window VerifyResult):
+  - **Vector 1 — institutional (authority-issued).** A bundle with one verified `{ ref: { scheme: "lei", identifier: "5493001KJTIIGC8Y1R12" }, verifiedBy: <passing, fresh> }` → `"institutional"`.
+  - **Vector 2 — verified (non-authority + proof).** A bundle whose only verified claim is `{ ref: { scheme: "did", identifier: "did:web:example.com" }, verifiedBy: <passing, fresh> }` → `"verified"`.
+  - **Vector 3 — self-declared (raw key).** A bundle with one `{ ref: { scheme: "key", identifier: "0x123…" } }` and **no** `verifiedBy` → `"self-declared"`.
+  - **Vector 4 — self-asserted value ignored.** A bundle carrying `identityTier: "institutional"` but whose only claim is an unverified `key:` → `"self-declared"` (the self-asserted value is discarded and recomputed, IT-2).
+  - **Vector 5 — highest tier wins.** A bundle with both a verified `lei:` and a verified `acme:`-backed `domain:` claim → `"institutional"` (institutional precedence).
+  - **Vector 6 — stale verifiedBy does not elevate.** A bundle whose only `lei:` claim has a `verifiedBy` that resolves but is **stale** per the §6.3.2 window → `"self-declared"`, not `"institutional"` (only verified-*and-fresh* claims count).
 
 ### 14.2 DACS-2 — Vet
 
