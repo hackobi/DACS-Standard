@@ -903,22 +903,23 @@ Read endpoints MUST NOT require authentication. Write/registration semantics are
 
 ### 7.1 Abstract
 
-DACS-2 specifies how a party’s claimed credentials are verified against authoritative sources during the Vet stage of a transaction. It defines:
+DACS-2 specifies how a party's claimed credentials are verified against authoritative sources during the Vet stage. It defines:
 
-- A **verification method registry** — a closed set of methods (verifiable-credential, tlsnotary, zktls, consensus-backed-proxy, oauth-attested, evm-rpc, domain-tls-control, self-signed), each with input/output shape, trust model, and substrate requirements.
-- A **recipe registry** — a per-credential-type lookup table binding a DACS-1 claim scheme (e.g. lei, finra-crd, domain) to the method and parsing rules used to verify a claim of that scheme. Recipes are versioned and anchored.
-- A **uniform VerifyResult shape** — the record the rest of the stack consumes, method-agnostic, anchored on the substrate, containing the decision, attestation reference, and structured data extracted from the authority’s response.
-- A **composite verification record** — the document Vet produces, aggregating freshness checks, supplementary signals, and deal-specific claims into a single anchored artifact referenced by DACS-5.
-- A **vet-credentials phase** — the DACS-2 phase type the orchestrator invokes; consumes the counterparty’s identity bundle and the listing’s bundle requirement, emits the composite verification record.
+- A **verification method registry** — a closed set (`verifiable-credential`, `tlsnotary`, `zktls`, `consensus-backed-proxy`, `oauth-attested`, `evm-rpc`, `domain-tls-control`, `self-signed`), each with input/output shape, trust model, and substrate requirements.
+- A **recipe registry** — a versioned, anchored lookup binding a DACS-1 claim scheme (`lei`, `finra-crd`, `domain`, …) to the method and parsing rules used to verify it.
+- A **uniform VerifyResult** — the method-agnostic, anchored record the rest of the stack consumes (decision, attestation reference, extracted data).
+- A **composite verification record** — the anchored artifact Vet produces, aggregating freshness checks, supplementary signals, and deal-specific claims; referenced by DACS-5.
+- A **vet-credentials phase** — the phase the orchestrator invokes over the counterparty's bundle and the listing's requirement, emitting the composite record.
 
-Vet does three different jobs and produces one output. The output is the composite verification record. The rest of the transaction — and a future auditor, regulator, or arbitrator — references it.
+Vet does three jobs and produces one output (the composite verification record) that the rest of the transaction — and a future auditor, regulator, or arbitrator — references.
 
 ### 7.2 Motivation
 
-The Vet stage answers two questions a party must resolve before progressing past vet-credentials: *is the counterparty’s identity bundle valid right now?* (a bundle assembled months ago may contain claims whose underlying registrations have lapsed, sanctions lists have updated, or certifications have expired); *is the bundle sufficient for this specific deal?* (the listing may require claims the bundle does not contain because they are deal-specific and were not pre-attested).
-A naive design would treat Vet as a single one-shot credential check at session start. That fails for three reasons: **freshness** (existing standards produce attestations at issuance time; Vet must re-check at session start, against current authority state, and produce a current attestation that supersedes the stale one in the bundle); **supplementary signals** (reputation, completion history, dispute rates, and prior counterparty ratings inform whether to proceed even when every required claim is technically valid — these are not credentials in the formal sense but materially affect the decision); **deal-specific claims** (some claims exist only for this transaction — insurance binding for a particular shipment; clearance for a particular project — and are not pre-attested because they are not reused).
-A second design failure: treating each verification method as its own protocol. Without a uniform consuming shape, every downstream component needs per-method handling. DACS-2 introduces the VerifyResult as the lingua franca: methods produce it, the rest of the stack consumes it.
-A third design failure: forcing one method to handle all credentials. Authority-issued credentials in public registries (LEI, FINRA, SAM.gov, OFAC) do not cooperate with W3C VC issuance; their verification fits a consensus-backed proxy attestation pattern (SR-3). Private-data credentials (KYC tier, balance proofs) fit TLSNotary / zkTLS. Cooperative-issuer credentials fit W3C VC. The recipe registry routes each claim scheme to the appropriate method, and the rest of the stack stays method-agnostic.
+The Vet stage answers two questions before progressing past vet-credentials: *is the counterparty's bundle valid right now?* (claims assembled months ago may have lapsed registrations, updated sanctions lists, or expired certifications); *is it sufficient for this specific deal?* (the listing may require deal-specific claims the bundle was never pre-attested for).
+
+A one-shot check at session start fails for three reasons: **freshness** — existing standards attest at issuance; Vet must re-check against current authority state and produce a current attestation superseding the stale one; **supplementary signals** — reputation, completion history, dispute rates, and prior ratings inform the decision without being formal credentials; **deal-specific claims** — some claims exist only for this transaction (insurance binding, project clearance) and aren't reused.
+
+Two further design failures DACS-2 avoids: treating each method as its own protocol (the uniform `VerifyResult` is the lingua franca — methods produce it, the stack consumes it), and forcing one method onto all credentials (public-registry credentials fit consensus-backed proxy/SR-3; private-data fit TLSNotary/zkTLS; cooperative-issuer fit W3C VC — the recipe registry routes each scheme, the stack stays method-agnostic).
 
 ### 7.3 Verification methods (v0.1 closed registry)
 
@@ -1517,21 +1518,21 @@ Re-running vet-credentials with the same inputs MUST produce the same composite-
 
 ### 7.10 Rationale
 
-**Method-pluggable registry vs single method.** A single-method design would force every credential through one verification approach. No single approach fits every credential: cooperative-issuer credentials want W3C VC; private-data credentials want zkTLS; public-registry credentials want consensus-backed proxy attestation. The pluggable registry routes by credential type, and the rest of the stack consumes a uniform VerifyResult.
-**Closed v0.1 method set vs open from day one.** An open method registry from v0.1 makes conformance untestable: a verifier could declare an arbitrary "my-custom-method" and produce results the rest of the stack cannot validate. v0.1 ships eight methods covering the established attestation patterns. New methods are added through the steward’s acceptance process, the same way new schemes are added in DACS-1.
-**Recipe-per-scheme vs general-purpose verification protocol.** A general-purpose protocol (e.g., a single configurable HTTP-fetch endpoint per credential) would lose the structured parser rules, the success-criterion semantics, and the negative-match pattern that recipes encode. Recipes are small and per-scheme; they capture the messy reality of each authority’s response format.
-**Composite record vs separate per-claim records.** The rest of the stack needs to reference *one* artifact for Vet, not N. Separate per-claim records would force every downstream consumer to walk a list and compose. The composite record does the composition once, signs once, anchors once.
-**SR-3 dependency for consensus-backed-proxy.** A substrate-agnostic version would require trusting a single proxy (Reclaim-style) or running MPC (TLSNotary-style). Both are valid options — and are present as separate methods in the registry — but they have higher per-verification cost and lower throughput. For high-volume public-registry verification (the bulk of institutional Vet workload), consensus-backed proxy at chain rate is the right tool. The substrate dependency is stated explicitly and is opt-in per recipe.
-**Single-verifier signature on composite record vs multi-party signed.** In a typical transaction, the buyer runs Vet on the seller and vice versa; each produces its own composite record. v0.1 carries one signature per record. Multi-party composition (a single record signed by both sides, attesting to mutual Vet) is more complex and is deferred.
-**Reputation as a supplementary signal vs a hard credential gate.** Reputation is not a credential — it has no authoritative source — and treating it as one would let a low-reputation counterparty fail Vet outright, eliminating any ability for new sellers to enter the market. As a supplementary signal, reputation is surfaced to the verifier (and to a listing’s optional gating) but does not by default block engagement.
+**Method-pluggable registry vs single method.** No single approach fits every credential (cooperative-issuer → W3C VC; private-data → zkTLS; public-registry → consensus-backed proxy). The registry routes by type; the stack consumes a uniform `VerifyResult`.
+**Closed v0.1 method set vs open.** An open registry makes conformance untestable (a verifier could declare an arbitrary method producing unvalidatable results). v0.1 ships eight methods covering the established attestation patterns; new ones come via the steward's acceptance process, as in DACS-1.
+**Recipe-per-scheme vs general-purpose protocol.** A general-purpose fetch endpoint would lose the structured parser rules, success-criterion semantics, and negative-match pattern recipes encode. Recipes are small, per-scheme, and capture each authority's messy response format.
+**Composite record vs per-claim records.** The stack references *one* Vet artifact, not N. The composite record composes, signs, and anchors once instead of forcing every consumer to walk a list.
+**SR-3 dependency for consensus-backed-proxy.** Substrate-agnostic alternatives (single proxy / MPC TLSNotary) exist as separate registry methods but cost more per verification. For high-volume public-registry verification — the bulk of institutional Vet — consensus-backed proxy at chain rate is the right tool; the dependency is explicit and opt-in per recipe.
+**Single-verifier signature on the composite record.** Each side runs Vet on the other and produces its own record; v0.1 carries one signature per record. Mutual-Vet multi-party composition is deferred.
+**Reputation as supplementary signal, not a hard gate.** Reputation has no authoritative source; as a hard gate it would lock new sellers out of the market. It is surfaced to the verifier (and optional listing gating) but does not by default block engagement.
 
 ### 7.11 Backwards compatibility
 
-**W3C Verifiable Credentials.** A DACS-2 recipe for any scheme MAY declare verifiable-credential as its default method. The DACS-2 verifier accepts a W3C VP (Verifiable Presentation) containing the VC; verification follows W3C VC data model 2.0. Recipe authors SHOULD set issuerAllowList for schemes where only specific issuers should be trusted (e.g., a recipe for kyc-tier would allow-list specific KYC providers).
-**TLSNotary.** A DACS-2 recipe MAY declare tlsnotary as its method. The proof envelope is a TLSNotary commitment; the notary signature is anchored as part of AttestationRef. Compatible with TLSNotary versions implementing the PSE 2024 rebuild and later.
-**zkTLS / Reclaim Protocol / Pluto.** A DACS-2 recipe MAY declare zktls and select a provider; the provider’s circuit/verification program id determines the verifier’s check. Compatible with Reclaim Protocol’s production verifier contracts and any equivalent zkTLS provider that ships a circuit description.
-**ERC-8004.** Recipes for the erc8004 scheme use the evm-rpc method to read token ownership via proxy-attested EVM call. DACS-2 results may additionally be published to the ERC-8004 reputation / validation registries via DACS-5; DACS-2 itself does not write there.
-**ACME / Let’s Encrypt domain-control challenges.** The domain-tls-control method follows ACME’s challenge/response patterns (RFC 8555). Implementations MAY reuse existing ACME libraries.
+**W3C Verifiable Credentials.** A recipe MAY declare `verifiable-credential` as its method; the verifier accepts a W3C VP per VC data model 2.0. Recipe authors SHOULD set `issuerAllowList` where only specific issuers are trusted (e.g. a `kyc-tier` recipe allow-listing specific KYC providers).
+**TLSNotary.** A recipe MAY declare `tlsnotary`; the notary signature anchors as part of `AttestationRef`. Compatible with the PSE 2024 rebuild and later.
+**zkTLS / Reclaim / Pluto.** A recipe MAY declare `zktls` and select a provider whose circuit / verification-program id determines the check. Compatible with Reclaim's production verifier contracts and equivalent providers shipping a circuit description.
+**ERC-8004.** `erc8004`-scheme recipes use `evm-rpc` to read token ownership via proxy-attested call. DACS-2 results MAY additionally be published to ERC-8004 reputation/validation registries via DACS-5; DACS-2 itself does not write there.
+**ACME / Let's Encrypt.** The `domain-tls-control` method follows ACME's challenge/response (RFC 8555); implementations MAY reuse existing ACME libraries.
 
 ### 7.12 Security considerations
 
