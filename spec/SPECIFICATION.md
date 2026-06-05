@@ -762,7 +762,7 @@ type PhaseType =
   | "rate"
 ```
 
-Per-kind parameter shapes are normative in the owning chapter: vet-credentials — no parameters; negotiate-fixed-price — no parameters; negotiate-rfq — {maxTurns, timeoutSec, channelSubnet?, rfqInitiator?} per chapter 8; negotiate-sealed-envelope — {commitDeadline, revealWindow, selectionRule, channelSubnet?} per chapter 8; commit-agreement — no parameters; pay-*— {rail: string} (railId) per chapter 9; deliver-* — no parameters (details come from the listing’s DeliverableSpec); rate — optional {required?: boolean} per chapter 10.
+Per-kind parameter shapes are normative in the owning chapter: vet-credentials — no parameters; negotiate-fixed-price — no parameters; negotiate-rfq — {maxTurns, timeoutSec, channelSubnet?, rfqInitiator?, fixedPriceFallback?} per chapter 8; negotiate-sealed-envelope — {commitDeadline, revealWindow, selectionRule, channelSubnet?} per chapter 8; commit-agreement — no parameters; pay-*— {rail: string} (railId) per chapter 9; deliver-* — no parameters (details come from the listing’s DeliverableSpec); rate — optional {required?: boolean} per chapter 10.
 **Canonical serialisation and signature**
 A listing’s canonical form is the RFC 8785 JCS serialisation with the signature field omitted. The listing hash is sha256(canonical_form), hex-encoded. The signature.value is computed over the domain-separated payload per §B.7:
 signed_bytes := "dacs-listing:v1:" || listing_hash
@@ -2112,7 +2112,7 @@ type AgreementDocument = {
 
     price: PriceTerm                   // DACS-4 reference
 
-    rail: PaymentRailRef               // DACS-4 reference (must appear in listing.acceptedRails)
+    rail?: PaymentRailRef              // DACS-4 reference; REQUIRED only when the resolved listing pipeline contains a pay-* phase
 
     deadline: number                   // unix ms; settle-by deadline
 
@@ -2228,7 +2228,7 @@ Verifiers MUST recompute the canonical form, agreement hash, and domain-separate
 
 #### 8.5.2 Listing conformance validation
 
-A verifier MUST validate the agreement against its referenced listing: terms.price.currency MUST equal the listing pricing currency (for negotiable pricing, bandCenter.currency; for fixed pricing, the listed price currency) — a band or equality comparison across differing currencies MUST be rejected before any amount comparison; terms.price MUST lie within the listing’s pricing band (if pricing is negotiable, within the band declared by the negotiable variant's `minPct` / `maxPct` fields around `bandCenter` — `minPct` and `maxPct` are non-negative percentages and the admissible band is the **inclusive** interval [`bandCenter.amount × (100 − minPct) / 100`, `bandCenter.amount × (100 + maxPct) / 100`]; each computed bound MUST be **rounded half-up to the number of fractional digits of `bandCenter.amount` in its CD-1 canonical form** (§8.5.1) — NOT to any "currency precision", which is undefined at listing time (settlement precision is tied to `rail.asset.decimals`, not the listing currency) — then canonicalised per CD-1, and `terms.price.amount`, compared as a full-precision CD-1 decimal, MUST be ≥ the lower bound and ≤ the upper bound (boundaries inclusive); a verifier MUST reject the listing if the computed lower bound is ≤ 0; if `derivedFromPattern == "fixed-price"` over negotiable pricing, `terms.price` MUST instead equal `bandCenter` exactly per CD-1, not merely lie within the band — see PS-3; if fixed pricing, equal to the listed price); terms.rail MUST appear in listing.acceptedRails; terms.deliverable MUST conform to the listing’s offering.deliverable — specifically: terms.deliverable.deliverableType MUST equal the listing offering.deliverable kind, terms.deliverable.hash MUST equal the canonical DeliverableRef.hash of the listing’s offering.deliverable (per §9.3), and terms.deliverable.schemaUrl MUST equal the listing offering.deliverable.schemaUrl (both absent, or both present and equal); terms.deadline MUST be ≤ committedAt + listing.terms.deadlineSecAfterCommit, where committedAt is the SR-2 anchor timestamp of the commitment record (§8.6) — the same objective, substrate-determined clock SE-2 uses — NOT the self-reported `generatedAt`, which a party could backdate to widen the settle window; the listing's `validity.notAfter` (if set) MUST be ≥ committedAt — the listing MUST NOT have expired between read and commit-agreement (the §6.3.4 step-3 read-time check governs discovery; this re-check governs commit, closing the read-to-commit interval); derivedFromPattern MUST match the listing’s pipeline-declared negotiation pattern. Agreements failing any check MUST be rejected by commit-agreement.
+A verifier MUST validate the agreement against its referenced listing: terms.price.currency MUST equal the listing pricing currency (for negotiable pricing, bandCenter.currency; for fixed pricing, the listed price currency) — a band or equality comparison across differing currencies MUST be rejected before any amount comparison; terms.price MUST lie within the listing’s pricing band (if pricing is negotiable, within the band declared by the negotiable variant's `minPct` / `maxPct` fields around `bandCenter` — `minPct` and `maxPct` are non-negative percentages and the admissible band is the **inclusive** interval [`bandCenter.amount × (100 − minPct) / 100`, `bandCenter.amount × (100 + maxPct) / 100`]; each computed bound MUST be **rounded half-up to the number of fractional digits of `bandCenter.amount` in its CD-1 canonical form** (§8.5.1) — NOT to any "currency precision", which is undefined at listing time (settlement precision is tied to `rail.asset.decimals`, not the listing currency) — then canonicalised per CD-1, and `terms.price.amount`, compared as a full-precision CD-1 decimal, MUST be ≥ the lower bound and ≤ the upper bound (boundaries inclusive); a verifier MUST reject the listing if the computed lower bound is ≤ 0; if `derivedFromPattern == "fixed-price"` over negotiable pricing, `terms.price` MUST instead equal `bandCenter` exactly per CD-1, not merely lie within the band — see PS-3; if fixed pricing, equal to the listed price); if the resolved listing pipeline contains any `pay-*` phase, terms.rail MUST appear in listing.acceptedRails; if the resolved listing pipeline contains no `pay-*` phase, terms.rail MUST be absent; terms.deliverable MUST conform to the listing’s offering.deliverable — specifically: terms.deliverable.deliverableType MUST equal the listing offering.deliverable kind, terms.deliverable.hash MUST equal the canonical DeliverableRef.hash of the listing’s offering.deliverable (per §9.3), and terms.deliverable.schemaUrl MUST equal the listing offering.deliverable.schemaUrl (both absent, or both present and equal); terms.deadline MUST be ≤ committedAt + listing.terms.deadlineSecAfterCommit, where committedAt is the SR-2 anchor timestamp of the commitment record (§8.6) — the same objective, substrate-determined clock SE-2 uses — NOT the self-reported `generatedAt`, which a party could backdate to widen the settle window; the listing's `validity.notAfter` (if set) MUST be ≥ committedAt — the listing MUST NOT have expired between read and commit-agreement (the §6.3.4 step-3 read-time check governs discovery; this re-check governs commit, closing the read-to-commit interval); derivedFromPattern MUST match the listing's selected negotiation path: normally the listing's pipeline-declared negotiation pattern, except that a `negotiate-rfq` step with `fixedPriceFallback: true` MAY produce `derivedFromPattern == "fixed-price"` when the buyer selects the centre-price fallback path described in §8.8. Agreements failing any check MUST be rejected by commit-agreement.
 
 **Ordering of the `committedAt`-relative checks.** The deadline and `notAfter` checks above reference `committedAt` — the commitment record's SR-2 anchor timestamp (§8.6) — which only exists *after* the commitment is anchored (§8.6 step 5), later than the value checks at §8.6 step 3. So: the value-independent checks (currency, price-band, rail, deliverable, pattern) gate pre-anchor at step 3; the two `committedAt`-relative checks are authoritative against the anchored `committedAt` — the orchestrator performs a provisional check against the current clock before anchoring, then MUST re-evaluate them against the actual anchored `committedAt`, and any consumer/verifier reading the anchored commitment MUST likewise re-check them against `committedAt`. A commitment whose anchored `committedAt` violates either check is invalid. This keeps `committedAt` the objective anti-backdating clock (the §6.3.4 read-time check still governs discovery) without a circular dependency on an as-yet-unanchored value.
 
@@ -2611,7 +2611,7 @@ The v0.1 registry contains rail entries for the most-used settlement paths in pr
 #### 9.4.3 Rail authoring and resolution
 
 A conforming rail author MUST: (RD-1) sign the rail with the registry steward’s signing key over the domain-separated payload "dacs-rail:v1:" || rail_hash per §B.7; (RD-2) anchor the rail via SR-2 at the canonical address; (RD-3) specify railVersion as monotonically increasing per railId; (RD-4) specify supersedes when replacing a prior rail with the same railId; (RD-5) ensure the railType matches the asset and network kinds (an evm-erc20 rail with a Solana asset MUST be rejected).
-A consumer MUST resolve a rail by: reading the rail-registry index from dacs4:registry:v0.1; looking up the entry for the agreement’s terms.rail.railId; fetching the rail at the indicated anchor and verifying its content hash and signature; if the agreement pins a specific railVersion, MUST use that version; otherwise MUST use the latest at session start, pinned into the session.
+A consumer MUST resolve a rail only for a payment-bearing agreement: reading the rail-registry index from dacs4:registry:v0.1; looking up the entry for the agreement’s terms.rail.railId; fetching the rail at the indicated anchor and verifying its content hash and signature; if the agreement pins a specific railVersion, MUST use that version; otherwise MUST use the latest at session start, pinned into the session. If the resolved listing pipeline contains no `pay-*` phase, rail resolution is skipped and `AgreementDocument.terms.rail` MUST be absent per §8.5.2.
 **Progressive anchoring for early deployments.** The rail registry follows the same progressive anchoring pattern as the DACS-2 recipe registry (§7.4.4). Phase PA-1 (bootstrap): rails shipped as in-code constants. Phase PA-2 (current): rails anchored by the steward (currently KyneSys Labs) under a single signature. Phase PA-3 (future): rails anchored under multi-signature governance if and when a constituted body is established. Implementations MUST disclose which phase they operate in; consumers MUST verify the rail’s anchoring phase against their own trust requirements.
 
 #### 9.4.4 Rail availability (normative)
@@ -3298,13 +3298,19 @@ type ReputationDerivation = {
 #### 10.5.1 Derivation algorithm
 
 ```
-derive(party, bundles, windowStart, windowEnd):
+derive(party, bundles, windowStart, windowEnd, windowingBasis):
+
+  bundle_window_time(b, windowingBasis) :=
+
+    if windowingBasis == "finalisedAt": b.finalisedAt
+
+    if windowingBasis == "sr2-anchor-timestamp": verified_sr2_anchor_timestamp(b)
 
   scoped := [b for b in bundles
 
               where party in {p.primaryClaim for p in b.parties}
 
-              AND windowStart <= b.finalisedAt <= windowEnd]
+              AND windowStart <= bundle_window_time(b, windowingBasis) <= windowEnd]
 
   if scoped is empty:
 
@@ -3425,7 +3431,7 @@ derive(party, bundles, windowStart, windowEnd):
   // bundleCount=0 result as the `scoped`-empty early return — there is no separate code path.
 
   bundleRefs := sort([ref(b) for b in reconciled], ascending by contentHash)   // deduped authoritative copies (matches bundleCount); canonical ascending-contentHash order per the §10.5.3 determinism receipt; empty when reconciled is empty
-  windowingBasis := <"finalisedAt" | "sr2-anchor-timestamp">   // record which clock the window predicate was applied against (§10.5.1); re-derivation MUST use the same basis
+  windowingBasis := input.windowingBasis   // record which clock the window predicate was applied against (§10.5.1); re-derivation MUST use the same basis
 
   return ReputationDerivation with computed metrics
 ```
