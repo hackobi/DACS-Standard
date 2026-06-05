@@ -10,9 +10,12 @@
         "issuedAt": 1760000000000,
         "ref": "domain:example.com",
         "verifiedBy": {
-          "contentHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-          "kind": "storage-program",
-          "locator": "stor:verify:domain-example.com"
+          "anchor": {
+            "kind": "storage-program",
+            "locator": "stor-verify-domain-example.com"
+          },
+          "contentHash": "11ca96e9ed78f104dba1c6e28f4242b6c4cf4024c0cc3adc9b8e56369a62d20c",
+          "recipeVersion": 1
         }
       }
     ],
