@@ -36,6 +36,14 @@ A read-only critical review of the edited DACS-1 (independent reviewer) found **
 
 Everything else the restructure touched verified behavior-preserving (signed-bytes bullets, BP/BR, validation list, verify+freshness, CF-4 table all sound; tables well-formed; no dropped MUSTs). Lesson: **a readability table that adds a *derived* column can encode a contradiction the source prose only had latently — always cross-check new tables against the surviving derivation rules.**
 
+## Post-pass review — round 2 (independent, cold, 2026-06-06)
+A second fresh-eyes reviewer (no knowledge of C1/C2) read DACS-1 cold. **Clean on criticals** — explicitly confirmed the C1/C2 fixes hold (verified-`key:` → `verified` consistent in all 3 places; CF-4 `listingId` consistent across prose/table/example; no false "cannot disagree" claim; no dropped MUSTs; rule families single-defined; tables well-formed). Two **minor** items fixed:
+- §6.4 rationale listed **"OFAC"** among shipped DACS-1 schemes — but OFAC is a DACS-2 sanctions *check*, not an identity scheme (**pre-existing error from the monolith**, count 1 on main). Corrected to the real registry (LEI, FINRA-CRD, SAM-UEI, FedRAMP, NAICS, CMMC).
+- `BundleClaim.expiresAt` schema comment "when verifiedBy becomes stale" overstated the field (it only *narrows* the authority window) — aligned to §6.3.2.
+- (no-op) two `signed_bytes :=` definitions share the name but are disambiguated by their domain prefixes — cosmetic, left.
+
+**Convergence:** round 2 found no new criticals → DACS-1 treated as clean.
+
 ## Reviewed — correct, no change
 - **DACS-1 §6.3.1 "Parsers … SHOULD emit lowercase" then CF-2 "Scheme lowercased (MUST)".** Looked contradictory but is intentional scoping (permissive default → MUST at the hash/sign/compare boundary). CF-2 already flags the escalation. No fix; possibly a one-line inline note if it keeps tripping readers.
 
