@@ -125,7 +125,7 @@ type BundleClaim = {
 
   issuedAt?: number                    // unix ms when the verification was performed
 
-  expiresAt?: number                   // unix ms when verifiedBy becomes stale
+  expiresAt?: number                   // unix ms; presenter upper bound — narrows the authority window only (§6.3.2 Freshness window)
 
   metadata?: Record<string, unknown>   // scheme-specific
 
@@ -640,7 +640,7 @@ Read endpoints MUST NOT require authentication. Write/registration semantics are
 ### 6.4 Rationale
 
 **Identity-as-bundle vs single-rooted identifier.** A single-root model forces every listing onto one primitive — either too weak for institutional flows (a signing key) or infeasible for micropayments (an LEI). The bundle model lets each listing declare its own minimum and each counterparty present what it holds. Reputation keys against the bundle's *primary* claim so a party accumulates separate reputation per tier — preventing a strong signing-key reputation from laundering into a fresh LEI presentation.
-**Closed scheme registry in v0.1 vs open.** An open registry fragments: parsers can't validate bundles without runtime-loaded recipes and conformance becomes untestable. v0.1 ships a fixed high-volume set (LEI, FINRA, SAM, OFAC, FedRAMP, plus self-sovereign and platform identifiers); new schemes ship via subsequent minor versions under the steward, and `x-` experimental prefixes are the out-of-band escape valve.
+**Closed scheme registry in v0.1 vs open.** An open registry fragments: parsers can't validate bundles without runtime-loaded recipes and conformance becomes untestable. v0.1 ships a fixed high-volume set (LEI, FINRA-CRD, SAM-UEI, FedRAMP, NAICS, CMMC, plus self-sovereign and platform identifiers); new schemes ship via subsequent minor versions under the steward, and `x-` experimental prefixes are the out-of-band escape valve.
 **Listing as full JSON vs hash-only.** Full anchoring lets any party with substrate access retrieve and verify the binding contract without off-chain dependency. The cost is on-chain size; the 16 KB cap (§6.3.4) keeps anchoring cheap while the `extendedDescriptionUrl` + hash pattern carries verbose content. Listings whose essential terms exceed 16 KB are a v2 concern; v0.1 treats the cap as a forcing function toward simplicity.
 **Discovery via `.well-known/agent.json` extension.** An additive `dacs` block preserves A2A interoperability and reuses a deployed pattern; a separate surface would duplicate publishing and create ambiguity.
 **Catalog API off-chain vs on-chain.** The chain holds listings (source of truth); off-chain catalogs index for performance. An on-chain catalog would centralise discovery while being slower and costlier. Competing catalogs may coexist; clients always dereference to chain for the binding artifact.
