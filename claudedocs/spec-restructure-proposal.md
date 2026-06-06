@@ -132,3 +132,29 @@ DACS's coupling profile (one shared data model) is **most like CSS** — needs a
 - Newcomer / evaluator → Primer (~6 pp).
 - Single-stage implementer → Primer + Core + 1 module (~36 pp).
 - Whole-stack implementer → everything (~78 pp, ~same total as today).
+
+---
+
+## 10. Pre-v0.2 fix list — rule-family Core-boundary moves
+
+Surfaced reading DACS-2 (the CF-4 reference in CM-2, 2026-06-06). The **types** belong in Core (§2); so do the **cross-cutting rule families** — but several are currently written inside a stage module. Test: **used across ≥2 modules / shared infrastructure → CORE; specific to one stage → that module.** ("Common" ≠ "cross-module" — CM-1..5 is the *verification-method* common contract, common only *within* Vet, so it stays in DACS-2.)
+
+**Already in CORE (correct):** SIG-1..5 (§B.7), CF-1 (§B.2), GOV-1..3 (§11).
+
+**Hoist into CORE before the v0.2 split (currently mis-homed in a module):**
+
+| Family | What | Current home | Why it's cross-cutting |
+|---|---|---|---|
+| **CF-2, CF-3** | ClaimReference canonical byte form / identity | DACS-1 §6.3.1 | DACS-1 matching, DACS-5 reputation keying + replay defence |
+| **CF-4** | logical-address delimiter encoding | DACS-1 §6.3.4 | addresses in DACS-1 / 2 / 4 / 5 |
+| **CD-1** | canonical decimal | DACS-3 §8.5.1 | DACS-3 pricing + DACS-4 settlement amounts |
+| **ST-1..8** | session state machine | DACS-5 §10.3.1 | the session model; DACS-4 references it (settle-asymmetric / ST-8) |
+
+After the move, CORE holds the full **universal-mechanisms** set (SIG + CF-* + CD-1 + ST-* + GOV + the phase-handler contract), and each module keeps only its stage-specific families:
+- DACS-1: BP, BR, LP, LR, IT (**MA / match() is borderline** — the Identify↔Vet bridge; deep-dive §4 already flags it for Core).
+- DACS-2: CM, RA, RAV, PSP, VP-R, VP-C, VPC, WN.
+- DACS-3: CH, SE, RFQ, PS, CA.
+- DACS-4: PC, HTLC, RD, AMEND, PIPE, RAV-R.
+- DACS-5: RT.
+
+Do this at the physical Core/module split (§7 step "v0.2"), not before — it churns cross-references (a `§6.3.4` CF-4 cite becomes `[CORE: CF-4]`, etc.). It's a *move*, not a rewrite: the rule text is unchanged, only its home document.
