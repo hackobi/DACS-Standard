@@ -8,7 +8,9 @@ Two categories:
 
 Status: `open` → `fixed`.
 
-**DACS-1 (Identify): pass complete 2026-06-06** — all 7 items below fixed; 27/27 rule IDs + 103/103 MUSTs preserved, 5 validators + 35 tests green.
+**DACS-1 (Identify): pass complete 2026-06-06** — first 7 items (read-through finds) fixed, THEN a comprehensive whole-module sweep added #8–#11 and caught a self-inflicted duplication. 27/27 rule IDs + 103/103 MUSTs preserved throughout, 5 validators + 35 tests green.
+
+**Comprehensive sweep (2026-06-06):** assessed all 14 prose paragraphs ≥110 words. Fixed #8–#11 below. **Corrected a duplication SC#7 introduced** — my CF-4 table came with a "**The rule.**" sentence that duplicated the pre-existing formal **Rule CF-4** (§6.3.4 L422); removed it, folded the MUST/MUST-NOT into the table lead-in. The other ~8 dense paragraphs are single-topic/coherent or already-structured (session-nonce binding, selective-disclosure scope note, SIWD-preferred, sr1-root, revocation, §6.6 security threats, the write-input-mapping (a)(b)(c) block, the formal Rule CF-4 with its worked example, the CF-2 (a)(b)(c) bullet) — left as-is (not the fused-rule+enumeration anti-pattern).
 
 | # | Location | Category | Issue | Proposed fix | Status |
 |---|----------|----------|-------|--------------|--------|
@@ -21,6 +23,11 @@ Status: `open` → `fixed`.
 | 6 | DACS-1 §6.3.2 ("For a BundleClaim with verifiedBy present: …" + the freshness-window paragraph) | SC | One dense paragraph fuses *two* things: the 5-step verification checklist **and** the freshness-window formula (with clamping + fail-closed). The inline `min(…)` and the "ignore later wrapper timestamps" clamp are very hard to parse in prose. | Split into (1) a numbered **verification steps** list (fetch → hash-check → parse+recipe → identifier-match → decision==pass → else unverified), and (2) a **Freshness window** sub-block: issuance = `verifiedAt`; `expiry = min(expiresAt ?? ∞, validUntil ?? verifiedAt+defaultMaxAgeSec×1000)`; presenter timestamps clamp (narrow-only, never widen); `defaultMaxAgeSec` from the result's own `recipeVersion` (not latest); fail-closed when undeterminable. Keep the formula verbatim. | fixed |
 
 | 7 | DACS-1 §6.3.4 (CF-4 logical-address encoding paragraph) | SC | One dense paragraph carries: what CF-4 is/isn't + the full list of 7 address kinds it applies to + which segment is variable in each + the why. The per-address variable-vs-fixed detail is impossible to scan in prose. | Lead with the one rule (encode internal `:` of variable segments → `%3A`; leave structural delimiters), then a **table** (address → variable segment(s) → fixed segments), then the one-line why (undecidable boundaries → divergent native addresses). Note CF-4 governs the *name's* parseability, not the native-address formula. Keep all address patterns verbatim. Table drafted in chat 2026-06-06. | fixed |
+
+| 8 | DACS-1 §6.3.2 (presentedBy selection paragraph, 206w) | SC | Fuses the selection rule + reader-acceptance + the big "Reputation MUST NOT be keyed against an unverified presentedBy" anti-laundering rule in one 206-word block | Split: selection-rule paragraph + a separate **Verified-presentedBy for reputation** rule. | fixed |
+| 9 | DACS-1 §6.3.4 (listing validation order) | SC | "validate in the following order, halting on first failure: (1)…(9)" — an ordered sequence flattened into prose | Numbered list (1–9), each step verbatim. | fixed |
+| 10 | DACS-1 §6.3.2 (canonical serialisation paragraph) | SC | General canonical-form/hash rule fused with the SIWD-specific verifier re-derivation MUST | Split: general rule + a separate **SIWD bundle-binding check** block. | fixed |
+| 11 | DACS-1 §6.3.2 (BP-1..BP-4 / BR-1..BR-5 conformance) | SC | Inline `(BP-1) … (BP-4)` and `(BR-1) … (BR-5)` lists in running prose | Bullet lists, one rule per bullet, verbatim. | fixed |
 
 ## Reviewed — correct, no change
 - **DACS-1 §6.3.1 "Parsers … SHOULD emit lowercase" then CF-2 "Scheme lowercased (MUST)".** Looked contradictory but is intentional scoping (permissive default → MUST at the hash/sign/compare boundary). CF-2 already flags the escalation. No fix; possibly a one-line inline note if it keeps tripping readers.
