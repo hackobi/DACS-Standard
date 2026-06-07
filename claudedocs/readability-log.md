@@ -91,6 +91,12 @@ Two fresh-eyes reviewers ran in parallel: (A) meaning-preservation, diffing ever
 
 **Convergence:** the only review action item (the §7.7.2 rendering) is fixed; no normative meaning changed. DACS-2 treated as clean. Pre-existing items (§7.9 family coverage) noted for a future steward cleanup, not this pass.
 
+## DACS-3 (Negotiate) — finds (read-through in progress)
+
+| # | Location | Category | Issue | Proposed fix | Status |
+|---|----------|----------|-------|--------------|--------|
+| 27 | DACS-3 §8.5–§8.6 (auto-accept commitment, orchestrator-time procedure) | SC | A numbered `(1)…(4)` orchestrator procedure flattened into one prose sentence, where **step (1) balloons into a wall** fusing the two-phase `validUntil` check (provisional vs current clock at signing time → already-expired MUST NOT sign; authoritative `committedAt ≤ validUntil` re-check at commit-agreement against the anchored `committedAt`, §8.6, per §8.5.2 ordering) + its rationale (per-session `committedAt` doesn't exist pre-anchor). Step (4) also fuses the instance-signature domain separator + the "NOT pre-issued / MUST be live / delegated auto-signer scope" rule. | Render `(1)–(4)` as a numbered list. Pull step (1)'s validity check into a labelled **two-phase validity** sub-block: *provisional* (current clock at signing time; already-expired MUST NOT produce an instance signature) → *authoritative* (`committedAt ≤ validUntil` at commit-agreement vs the anchored CommitmentRecord §8.6, §8.5.2 ordering), with the "committedAt doesn't exist pre-anchor" as the *why*. In step (4) display the signed payload `"dacs-auto-accept-instance:v1:" || agreementHash || autoAcceptCommitmentHash`, then a callout: the instance signature is **NOT pre-issued** — MUST be produced live by the seller's keyholder or an explicitly-delegated auto-signer; the commitment authorises the auto-signer's *scope*, it is not the acceptance. Keep all MUSTs + the domain separator verbatim. | open |
+
 ## Reviewed — correct, no change
 - **DACS-1 §6.3.1 "Parsers … SHOULD emit lowercase" then CF-2 "Scheme lowercased (MUST)".** Looked contradictory but is intentional scoping (permissive default → MUST at the hash/sign/compare boundary). CF-2 already flags the escalation. No fix; possibly a one-line inline note if it keeps tripping readers.
 
