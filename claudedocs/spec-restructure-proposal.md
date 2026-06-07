@@ -158,3 +158,9 @@ After the move, CORE holds the full **universal-mechanisms** set (SIG + CF-* + C
 - DACS-5: RT.
 
 Do this at the physical Core/module split (§7 step "v0.2"), not before — it churns cross-references (a `§6.3.4` CF-4 cite becomes `[CORE: CF-4]`, etc.). It's a *move*, not a rewrite: the rule text is unchanged, only its home document.
+
+**Editorial / completeness fixes for v0.2 (text-only, separate from the moves above).** Surfaced by the readability passes; tracked on **ROADMAP.md → Part 1 → Identity & vetting (DACS-1 / DACS-2)** (authoritative there, listed here so the v0.2 cut picks them up):
+- **DACS-2 §7.9 conformance-summary completeness** — the role→rule-range table omits PSP-1..5, WN-1..6, GOV-2/3, PA-1..3 (all carry MUSTs). Assign each family an owning role and add rows. No rule-text change.
+- **DACS-2 §7.5.1(a) retry-summary wording** — reads looser than the governing VP-R1/VP-R3 (retry only on a transient-class error); tighten the summary sentence.
+
+(Both found during the DACS-1/DACS-2 readability passes; the readability backlog itself lives in `claudedocs/readability-log.md`. DACS-3/4/5 readability passes remain — same cycle.)
