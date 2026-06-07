@@ -109,6 +109,12 @@ version-stamp which DACS version it reflects.
 | DACS spec-reference MCP server | Anticipated (community) | Query the spec by rule/section, fetch artifact schemas (Listing, IdentityBundle, AgreementDocument, SettlementEvidence, AttestationBundle, …), list rule families (SE-*, HTLC-*, PC-*, RAV-*), pull the §14 conformance vectors. Read/search/fetch only. |
 | DACS builder/validator MCP server | Anticipated (community) | Construct and verify bundles, run conformance vectors. Follow-on to the reference MCP; held until the reference implementation + §14 vectors stabilise so it doesn't harden against a moving API. |
 
+## SDK / client library
+
+| Item | Status | Notes |
+|------|--------|-------|
+| DACS client SDK | Anticipated | A reusable library that collapses per-agent setup by implementing the cross-cutting machinery **once**: canonical form (JCS + NFC + decimals-as-strings, §A), domain-separated signing + content-hash chaining (§B.7), SR-2 anchoring (incl. CF-4 logical-address assembly), and produce/consume for the spine artifacts (IdentityBundle, Listing, AgreementDocument, SettlementEvidence, AttestationBundle, RatingRecord), plus recipe-registry resolution + execution for DACS-2 vetting. Adoptability is gated on this **more than on the prose**: a from-spec-cold implementation is dominated by exactly this layer, so an SDK reduces a new trading agent to *keys + funds + a handful of calls* (the §-minimum-viable path: self-declared bundle → check a listing → agree → settle → attest). Pairs with the v0.2 move of the `CF-*` / `CD-*` / `ST-*` rule families into Core (one canonical implementation target). Mirrors the spec → MUST generate schemas/constants from this repo and version-stamp the DACS version it targets. |
+
 ## Documentation
 
 | Item | Status | Notes |
