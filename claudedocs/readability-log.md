@@ -130,6 +130,12 @@ Read-through finds #27–#32 fixed, THEN a systematic ≥110-word sweep added #3
 
 **Convergence:** meaning-preservation clean; the only introduced defects (4 blank-line boundaries) are fixed; re-gate green. DACS-3 treated as clean.
 
+## DACS-4 (Settle) — finds (read-through in progress)
+
+| # | Location | Category | Issue | Proposed fix | Status |
+|---|----------|----------|-------|--------------|--------|
+| 38 | DACS-4 §9.x (`PricingSpec` `negotiable` variant inline comment, line ~52) | SC | An inline `//` type comment carries a whole semantics paragraph: the band formula + half-up rounding + inclusivity + lower-bound≤0 reject (all **restating §8.5.2**, the authoritative rule) **plus** the load-bearing-but-buried asymmetry rationale (`minPct < 100` keeps the floor positive; `maxPct` intentionally unbounded → NO upper price protection → buyer SHOULD set its own ceiling). The key insight — *the band protects the floor, not the ceiling* — is hidden at the end of a long comment. | Keep the inline comment terse (field meanings + "band per §8.5.2"); **defer the formula/rounding/reject rule to §8.5.2** rather than restating it (avoids drift between the two copies). Pull the **asymmetry note** into short prose after the code block: `minPct < 100` ⇒ positive lower bound; `maxPct` unbounded ⇒ open-ended upside is legitimate, so the band gives **no ceiling** and a buyer-side orchestrator SHOULD enforce its own acceptance ceiling. Keep the MUST (reject if lower bound ≤ 0) wherever it lands, verbatim. | open |
+
 ## Reviewed — correct, no change
 - **DACS-1 §6.3.1 "Parsers … SHOULD emit lowercase" then CF-2 "Scheme lowercased (MUST)".** Looked contradictory but is intentional scoping (permissive default → MUST at the hash/sign/compare boundary). CF-2 already flags the escalation. No fix; possibly a one-line inline note if it keeps tripping readers.
 
