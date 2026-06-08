@@ -24,6 +24,21 @@ The roadmap has two parts:
   contributions under a "contributor prototypes, steward owns the standard" model,
   and may be designated canonical by the steward if they prove solid.
 
+## Contribution maturity guide
+
+Use this table to decide whether a roadmap item is ready for a pull request or should start as an issue/design note.
+
+| Maturity | What it means | Good contribution shape |
+| --- | --- | --- |
+| Editorial-ready | Clarifies existing v0.1 text without changing conformance. | Small PR with section refs, validator output, and explicit "no normative change" note. |
+| Non-normative docs/tooling | Helps implementers or reviewers without changing the spec. | Docs, examples, indexes, read-only tools, or validators that preserve v0.1 semantics. |
+| Design-issue first | Cross-module or security-sensitive item whose shape is not settled. | Issue/RFC before PR; include affected artifacts, threat model, and migration impact. |
+| Reference-backed first | Candidate needs a shipped path and reference implementation before normative promotion. | Prototype fixture or implementation report; defer normative text until exercised. |
+| Substrate/SDK maturity first | Spec change depends on a substrate primitive or SDK surface that is not ready. | Track operational dependency; contribute tests/docs around the current boundary. |
+| Steward-directed only | Would alter registries, conformance, governance, settlement, reputation, or privacy semantics. | Coordinate with the steward before writing normative text. |
+
+See [`docs/contribution-map.md`](./docs/contribution-map.md) for a contributor-oriented version of this triage.
+
 ---
 
 # Part 1 — Standard (normative)

@@ -6,6 +6,14 @@
 
 **Stage:** Verify (5th of 5). **Status:** Draft (part of DACS v0.1). **Depends on:** SR-1 (preferred for cross-substrate primary-claim keying), SR-2 (required for bundle anchoring); composes with ERC-8004 reputation registry as an OPTIONAL publication surface. **Used by:** all subsequent DACS-1 sessions (reputation lookups), external auditors and regulators.
 
+**Reader map.** DACS-5 has three layers that should not be conflated:
+
+1. §10.3 is the live SessionRecord state machine. It is operational state and is off-chain by default.
+2. §10.4 is the AttestationBundle. It is the frozen, signed, anchored audit artifact.
+3. §10.5 derives reputation from closed bundles. It does not reinterpret live session state.
+
+When reviewing or implementing this module, keep perspective explicit: a bundle records outcome from the anchoring party's perspective, while derivation reconciles per `jobId` before computing metrics.
+
 ### 10.1 Abstract
 
 DACS-5 specifies how a completed session is anchored, signed, and converted into a reputation signal. It defines:

@@ -1,50 +1,148 @@
-# Operational builder guide outline
+# Operational builder guide
 
-This is a non-normative outline for operators preparing to implement DACS in production. It complements the existing [builders guide](./builders-guide.md) by focusing on operational, capital, and settlement-finality questions that the v0.1 specification deliberately leaves to implementers.
+*Non-normative. This guide helps operators prepare a DACS implementation for production. It complements the [builders guide](./builders-guide.md) by focusing on operational, capital, and settlement-finality questions that the v0.1 specification deliberately leaves to implementers.*
 
 ## 1. Scope and assumptions
 
-- Identify which DACS stages your system will produce, consume, or both.
-- Record substrate choices for SR-1 through SR-5 and note any operator-gated paths.
-- Separate normative conformance requirements from local operational policy.
+Before implementing, write down the local operating profile:
+
+- Which DACS stages your system produces, consumes, or both.
+- Which substrate satisfies SR-1 through SR-5 for each listing class.
+- Which rails and recipes are enabled, disabled, or operator-gated.
+- Which local policies are stricter than DACS conformance.
+- Which evidence you will retain outside anchored artifacts for incident response.
+
+Keep this profile separate from normative conformance. A local policy may reject a session that DACS would allow; it should not claim the protocol itself requires that rejection.
 
 ## 2. Capital and float planning
 
-- Estimate per-rail working capital needs by asset, network, finality window, and refund policy.
-- Track float reserved for pending sessions separately from treasury balances.
-- Model worst-case concurrent settlement exposure, including retries and stuck transactions.
-- Decide who funds gas, relay fees, bridge fees, and failed-settlement remediation.
+Settlement failures often come from ordinary operations, not protocol ambiguity. Plan capital by rail.
+
+For each rail, track:
+
+- asset and chain/network;
+- expected session volume;
+- confirmation/finality time;
+- refund or recovery window;
+- gas, relay, bridge, facilitator, and treasury fees;
+- worst-case concurrent exposure;
+- who funds each cost: buyer, seller, orchestrator, or platform.
+
+Recommended operator practice:
+
+- Keep reserved float for pending sessions separate from treasury balances.
+- Preflight spendable balance before advertising or accepting a rail.
+- Maintain a per-rail minimum-reserve threshold.
+- Alert before threshold breach, not after a session has committed.
+- Include retries and stuck transactions in exposure modelling.
 
 ## 3. Undercapitalised mid-session behavior
 
-- Preflight balances before advertising or accepting payment rails.
-- Fail fast when a selected rail cannot be funded; avoid partially committed settlement paths.
-- Classify undercapitalised outcomes consistently with the relevant phase `errorClass`.
-- Preserve evidence for failed attempts so reputation and dispute tooling can inspect the session.
+Undercapitalisation is an operational failure that should be surfaced early and classified consistently.
+
+Recommended flow:
+
+1. Run balance and allowance preflight before selecting a rail.
+2. If the selected rail cannot be funded before commitment, fail fast before external effects.
+3. If undercapitalisation appears after commitment, preserve the phase result and classify through the relevant phase `errorClass`.
+4. Do not fabricate successful SettlementEvidence to hide operator shortfall.
+5. Preserve enough local diagnostic evidence to explain whether the fault was local policy, counterparty action, substrate failure, or rail unavailability.
+
+The spec defines evidence and error classes; the operator defines treasury and retry policy.
 
 ## 4. Settlement finality integration
 
-- Map each rail's confirmation rule to the application's finality threshold.
-- Do not mark `ok: true` before the rail-specific finality semantics are satisfied.
-- Surface chain reorganizations, bridge delays, and recovery windows in operator dashboards.
-- Plan for the roadmap candidate `SettlementFinality` field without depending on it in v0.1.
+Do not mark `ok: true` until the rail-specific finality condition is satisfied.
 
-## 5. Key custody and HSM practice
+For each rail, document:
 
-- Inventory signing keys by artifact type: bundle presentation, listing, agreement, settlement evidence, ratings, and bundle closeout.
-- Prefer HSM or remote signer controls for steward, treasury, and production operator keys.
-- Rotate session keys without breaking primary-claim reputation continuity.
-- Log signature payload construction so domain-separation bugs are diagnosable.
+- confirmation threshold;
+- reorg depth considered safe;
+- timeout before retry or pause;
+- recovery window;
+- explorer or provider APIs used for monitoring;
+- whether finality is probabilistic, economic, or protocol-final.
 
-## 6. Observability and incident response
+Dashboard signals should distinguish:
 
-- Monitor anchored write failures, availability transitions, verifier timeouts, and rail preflight failures.
-- Alert when availability changes from `live` to a gated, disabled, or failed state.
-- Keep runbooks for re-anchoring evidence, re-running verification, and explaining abort outcomes.
+- pending broadcast;
+- included but below threshold;
+- final;
+- reorged;
+- expired/refundable;
+- recovery-pending;
+- terminal failure.
 
-## 7. Implementation checklist
+Plan for the roadmap candidate `SettlementFinality` field without depending on it in v0.1.
 
-- Run documentation and conformance validators before release.
-- Maintain local fixtures for happy-path and negative-path sessions.
-- Record deviations from the reference vectors as implementation notes, not spec assumptions.
+## 5. Chain reorganizations and recovery windows
+
+Operators should treat chain reorgs and bridge/tank recovery windows as first-class incidents.
+
+Recommended runbook:
+
+1. Freeze local progression for the affected session.
+2. Re-check the rail's authoritative source.
+3. If evidence was not yet anchored, wait for the replacement/finality state before anchoring.
+4. If evidence was anchored and later contradicted by a reorg, open an amendment or implementation report as appropriate; do not silently rewrite history.
+5. Record incident timing, chain references, and operator decision points.
+
+For cross-chain rails, separate "value moved" from "evidence anchored." SR-2 availability problems after value movement should follow the DACS-5 pause/resume semantics rather than being treated as ordinary counterparty failure.
+
+## 6. Key custody and HSM practice
+
+Inventory keys by artifact and authority:
+
+- listing signing keys;
+- identity-bundle presentation keys;
+- session/channel keys;
+- agreement signing keys;
+- settlement evidence signer keys;
+- rating signer keys;
+- bundle closeout keys;
+- recipe/rail steward keys if applicable;
+- treasury and payment keys.
+
+Recommended controls:
+
+- Use HSM or remote-signer controls for treasury, steward, and production operator keys.
+- Keep domain-separated signing payload logs so signature bugs are diagnosable.
+- Rotate session keys without changing primary-claim reputation keying.
+- Separate hot operational keys from registry/steward keys.
+- Require human approval for steward-key use while PA-2 single-signer governance remains in force.
+
+## 7. Observability and incident response
+
+Monitor at least:
+
+- anchored write failures;
+- verifier timeouts and warning rates;
+- recipe/rail availability changes;
+- payment rail preflight failures;
+- finality delays;
+- cross-chain asymmetric states;
+- abort rates by counterparty and listing;
+- bundle production failures;
+- signature-verification failures.
+
+Alerts should include the DACS phase, `jobId`, party primary claim where safe to show, rail or recipe ID, error class, and latest tx/evidence reference.
+
+## 8. Error-class playbooks
+
+Use local runbooks that mirror DACS error classes:
+
+- **transient:** retry within budget; do not mutate committed artifacts until retry outcome is known.
+- **permanent:** stop retrying; produce failure evidence where the phase requires it.
+- **counterparty:** preserve the evidence needed for reputation derivation and possible dispute review.
+- **substrate:** pause when the spec permits pause/resume; avoid misclassifying substrate outage as counterparty fault.
+- **settlement-atomicity:** escalate immediately; identify which external leg moved and which did not.
+
+## 9. Local fixtures and release gates
+
+Before release:
+
+- Run the local validators listed in `README.md`.
+- Maintain fixtures for happy path, failed Vet, failed payment, aborted session, and cross-chain recovery/asymmetry where supported.
+- Test that dashboards link back to anchored artifacts and external tx references.
+- Record implementation deviations as local policy notes, not spec assumptions.
 - Open implementation reports when production behavior reveals ambiguity in the standard.

@@ -14,6 +14,12 @@ This directory holds the authoritative DACS standard, published as a **Core docu
 
 Section numbers are retained across the split (a §9.x reference lives in `DACS-4-SETTLE.md`, etc.); the [document map in CORE](./CORE.md#document-map) gives the §→document index.
 
+Helpful non-normative companions:
+
+- [`docs/artifact-index.md`](../docs/artifact-index.md) maps major artifacts to defining sections and signature domains.
+- [`docs/examples-by-stakes.md`](../docs/examples-by-stakes.md) shows how the same five stages scale across transaction stakes.
+- [`docs/human-readability-review-checklist.md`](../docs/human-readability-review-checklist.md) describes how to review readability changes without altering normative meaning.
+
 **Normative language.** The specification uses the RFC 2119 / RFC 8174 keywords
 (MUST, SHOULD, MAY, …), normative only when uppercase.
 

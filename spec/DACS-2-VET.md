@@ -751,12 +751,13 @@ Re-running vet-credentials with the same inputs MUST produce the same composite-
 | Role | Requirements |
 | --- | --- |
 | Method implementer | CM-1 through CM-5 |
-| Recipe author | RA-1 through RA-5 |
+| ParserSpec author / recipe author | PSP-1 through PSP-5; RA-1 through RA-5 |
+| Recipe author / steward | GOV-2 through GOV-3; PA-1 through PA-3 |
 | Recipe-availability consumer | RAV-1 through RAV-4 |
 | Recipe steward (availability) | RAV-5 through RAV-7 |
-| Verifier (orchestrator) | VP-R1 through VP-R4; VP-C1 through VP-C3; VPC-1 through VPC-4 |
+| Verifier (orchestrator) | VP-R1 through VP-R4; VP-C1 through VP-C3; WN-1 through WN-6; VPC-1 through VPC-4 |
 | VerifyResult consumer | §7.5.2 attestation resolution; recipe-version pinning |
-| Composite record reader | §7.7.1 aggregation; signature validation |
+| Composite record reader | §7.7.1 aggregation; warning preservation/interpretation per WN-1 through WN-6; signature validation |
 
 ### 7.10 Rationale
 

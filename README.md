@@ -84,7 +84,12 @@ substrate-to-primitive mapping and production status. The unified SDK is [`@kyne
 | [`docs/flow-trace.md`](./docs/flow-trace.md) | End-to-end happy path as SDK-mapped pseudocode, with a sequence diagram and a verified SDK-compatibility note. |
 | [`docs/glossary-index.md`](./docs/glossary-index.md) | Non-normative index mapping key terms to their specification sections. |
 | [`docs/rule-id-index.md`](./docs/rule-id-index.md) | Non-normative index mapping labelled conformance rule families to spec sections and §14 test-plan hooks. |
-| [`docs/operational-builder-guide.md`](./docs/operational-builder-guide.md) | Outline for implementation operations, capital/float planning, key custody, and settlement-finality topics. |
+| [`docs/artifact-index.md`](./docs/artifact-index.md) | Non-normative index mapping major artifacts to defining sections, signature domains, and lifecycle roles. |
+| [`docs/examples-by-stakes.md`](./docs/examples-by-stakes.md) | Non-normative examples showing the five stages across low-, medium-, and high-stakes transactions. |
+| [`docs/operational-builder-guide.md`](./docs/operational-builder-guide.md) | Operational guidance for capital/float planning, finality, recovery windows, key custody, and incident response. |
+| [`docs/contribution-map.md`](./docs/contribution-map.md) | Contributor triage map for roadmap-aligned PRs, design issues, and steward-directed work. |
+| [`docs/human-readability-review-checklist.md`](./docs/human-readability-review-checklist.md) | Checklist for reviewing spec-compression/readability PRs without changing normative meaning. |
+| [`docs/spec-reference-mcp.md`](./docs/spec-reference-mcp.md) | Read-only MCP server design for querying sections, rule IDs, artifacts, and conformance vectors. |
 | [`conformance/vectors/`](./conformance/vectors/) | Machine-readable happy-path, negative-path, and core artifact example JSON fixtures with a stdlib validator. |
 | [`CHANGELOG.md`](./CHANGELOG.md) | Normative change history. Start here if you implemented against an earlier draft. |
 | [`ROADMAP.md`](./ROADMAP.md) | Anticipated follow-on work (informative). What's deferred beyond v0.1 and why — no committed dates. |
