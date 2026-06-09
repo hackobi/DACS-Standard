@@ -29,7 +29,7 @@ v0.1 conformance requirements and are excluded from the canonical
 - `conformance/fixtures/identity/identity-tier-*.json` — deterministic
   `identityTier` cases for institutional, verified, and self-declared bundles.
 - `conformance/fixtures/reputation/reputation-suspicious-pattern-flags.json` —
-  advisory `suspiciousPatternFlags` on a ReputationRecord / derivation surface.
+  advisory `suspiciousPatternFlags` on a ReputationDerivation / derivation surface.
 - `conformance/fixtures/settlement/htlc9-asymmetric.json` — the HTLC-9
   `dest-revealed-source-unclaimed` interim evidence state.
 - `conformance/fixtures/dacsx/dispute-outcome-htlc9-correction.json` — the

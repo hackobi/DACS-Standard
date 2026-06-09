@@ -19,7 +19,7 @@ class IdentityRiskAndDacsXPackTests(unittest.TestCase):
     def test_roadmap_tracks_identity_reputation_and_dacsx_improvements(self):
         text = ROADMAP.read_text(encoding="utf-8")
         self.assertIn("`identityTier` on IdentityBundle (#103)", text)
-        self.assertIn("`suspiciousPatternFlags` on ReputationRecord + min-bundleCount gating advice (#101)", text)
+        self.assertIn("`suspiciousPatternFlags` on ReputationDerivation + min-bundleCount gating advice (#101)", text)
         self.assertIn("DACS-X (dispute / execution-verification)", text)
         self.assertIn("DACS-X shared dispute fixtures / verifier pack (#99)", text)
         self.assertIn("HTLC-9 correction-amendment", text)
@@ -43,9 +43,13 @@ class IdentityRiskAndDacsXPackTests(unittest.TestCase):
         fixture = ROOT / "conformance/fixtures/reputation/reputation-suspicious-pattern-flags.json"
         data = json.loads(fixture.read_text(encoding="utf-8"))
         self.assertEqual(data["kind"], "ReputationRiskCase")
-        record = data["reputationRecord"]
-        self.assertIsInstance(record["suspiciousPatternFlags"], list)
-        self.assertTrue(record["suspiciousPatternFlags"])
+        self.assertNotIn("reputationRecord", data)
+        derivation = data["reputationDerivation"]
+        self.assertEqual(derivation["derivationVersion"], "1")
+        self.assertIsInstance(derivation["partyPrimaryClaim"], str)
+        self.assertIn(derivation["windowingBasis"], {"finalisedAt", "sr2-anchor-timestamp"})
+        self.assertIsInstance(derivation["suspiciousPatternFlags"], list)
+        self.assertTrue(derivation["suspiciousPatternFlags"])
         self.assertEqual(data["expectedCoreMetricsUnchanged"], True)
 
     def test_dacsx_dispute_outcome_fixture_links_to_htlc9_correction(self):
