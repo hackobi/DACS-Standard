@@ -6,6 +6,14 @@
 
 **Stage:** Settle (4th of 5). **Status:** Draft (part of DACS v0.1). **Depends on:** SR-2 (required), SR-5 (required for cross-chain rails only); composes with AP2, x402, ERC-20, SPL, HTLC contracts, and substrate-native bridges (Liquidity Tanks on Demos). **Used by:** DACS-5 (settlement evidence in session bundle).
 
+**Reader map.** Implementers usually need this module in five passes:
+
+1. Read §9.3 for shared payment/delivery/evidence types.
+2. Read §9.4 before selecting rails; `availability` is a normative input to orchestration, not a marketing status.
+3. Read §9.5 for the selected payment phase only, then return to §9.5.1 for the common contract every phase shares.
+4. Read §9.6 and §9.7 together: delivery phases and SettlementEvidence are the audit surface DACS-5 consumes.
+5. Read §9.8, §9.9, and §9.13 before shipping cross-chain or multi-phase pipelines; most operational mistakes live in finality, atomicity, and pipeline ordering.
+
 ### 9.1 Abstract
 
 DACS-4 specifies how value is exchanged and the deliverable provided once a DACS-3 agreement is committed. It defines:

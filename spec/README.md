@@ -14,6 +14,10 @@ This directory holds the authoritative DACS standard, published as a **Core docu
 
 Section numbers are retained across the split (a §9.x reference lives in `DACS-4-SETTLE.md`, etc.); the [document map in CORE](./CORE.md#document-map) gives the §→document index.
 
+Helpful non-normative companion:
+
+- [`docs/artifact-index.md`](../docs/artifact-index.md) maps major artifacts to defining sections and signature domains.
+
 **Normative language.** The specification uses the RFC 2119 / RFC 8174 keywords
 (MUST, SHOULD, MAY, …), normative only when uppercase.
 
