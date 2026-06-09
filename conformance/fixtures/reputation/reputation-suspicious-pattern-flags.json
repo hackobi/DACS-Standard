@@ -1,7 +1,10 @@
 {
   "expectedCoreMetricsUnchanged": true,
   "kind": "ReputationRiskCase",
-  "reputationRecord": {
+  "specRefs": [
+    "ROADMAP #101 (suspiciousPatternFlags — advisory ReputationDerivation extension; non-normative; not defined in v0.1)"
+  ],
+  "reputationDerivation": {
     "bundleCount": 24,
     "bundleRefs": [
       {
@@ -31,9 +34,7 @@
       "rapid-bundle-growth-with-zero-disputes"
     ],
     "windowEnd": 1760100000000,
-    "windowStart": 1759990000000
-  },
-  "specRefs": [
-    "ROADMAP #101 (suspiciousPatternFlags — non-normative; not defined in v0.1)"
-  ]
+    "windowStart": 1759990000000,
+    "windowingBasis": "finalisedAt"
+  }
 }
