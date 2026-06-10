@@ -253,7 +253,7 @@ Every pay-* phase handler MUST:
 
 **(PC-1)** accept a PaymentPhaseInput conforming to the shape below.
 
-**(PC-2)** produce SettlementEvidence anchored via SR-2 at `dacs4:payment:{jobId}:{railId}:{phaseIndex}[:resolved]` (or substrate equivalent). `phaseIndex` (the bare-integer pipeline phase index of this pay-* invocation, `BundlePhaseEntry.index`) is REQUIRED so repeated pay-* phases (PIPE-5) do not collide at one address (mirroring the entitlement `renewalSeq` and amendment `amendmentIndex` discipline); an ST-8 resolution anchors its superseding success record at the same address with a trailing `:resolved` segment; `railId` is a CF-4 variable segment and MUST be percent-encoded before assembly (internal colons → `%3A`, §6.3.4), while `jobId` (ULID), `phaseIndex`, and `resolved` need no encoding.
+**(PC-2)** produce SettlementEvidence anchored via SR-2 at `dacs4:payment:{jobId}:{railId}:{phaseIndex}[:resolved]` (or substrate equivalent). `phaseIndex` (the bare-integer pipeline phase index of this pay-* invocation, `BundlePhaseEntry.index`) is REQUIRED so repeated pay-* phases (PIPE-5) do not collide at one address (mirroring the entitlement `renewalSeq` and amendment `amendmentIndex` discipline); an ST-8 resolution anchors its superseding success record at the same address with a trailing `:resolved` segment; `railId` is a CF-4 variable segment and MUST be percent-encoded before assembly (internal colons → `%3A`, CORE §B.1), while `jobId` (ULID), `phaseIndex`, and `resolved` need no encoding.
 
 **(PC-3)** return a PhaseHandlerResult with `attestationRef` pointing to the evidence (except as deferred by PC-7 for the cross-chain anchor-pending case).
 

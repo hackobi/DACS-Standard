@@ -498,7 +498,7 @@ rate is OPTIONAL in a pipeline. When present, the phase MUST:
 - run after all settle-* phases complete with ok: true;
 - produce one RatingRecord per direction (buyer→seller, seller→buyer);
 - sign each RatingRecord over the domain-separated payload "dacs-rating:v1:" || sha256(canonical_JCS(record_without_signature)) per §B.7;
-- anchor each RatingRecord via SR-2 at dacs5:rating:{jobId}:{rater} (where {rater} is the RatingRecord.rater ClaimReference rendered per the §6.3.4 logical-address escaping rule for colon-containing claim references);
+- anchor each RatingRecord via SR-2 at dacs5:rating:{jobId}:{rater} (where {rater} is the RatingRecord.rater ClaimReference rendered per the CORE §B.1 logical-address escaping rule (CF-4) for colon-containing claim references);
 - include both ratingRefs in the bundle.
 
 Sellers and buyers MAY decline to rate; absence of a rating does not block bundle production. The pipeline step parameters MAY specify { required: true | false } per side.

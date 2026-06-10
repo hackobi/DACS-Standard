@@ -39,7 +39,7 @@ Every method MUST:
 
   `dacs2:{jobId}:{scheme}:{identifier}:v{recipeVersion}`
 
-  (or substrate-equivalent) — `{identifier}` is a CF-4 variable segment and MUST be percent-encoded before assembly (§6.3.4);
+  (or substrate-equivalent) — `{identifier}` is a CF-4 variable segment and MUST be percent-encoded before assembly (CORE §B.1);
 - **(CM-3)** produce a VerifyResult conforming to §7.5;
 - **(CM-4)** classify its outcome as exactly one of `pass`, `fail`, `indeterminate`, or `error` per the semantics in §7.5.1;
 - **(CM-5)** set `VerifyResult.method` to its own kind.
@@ -682,7 +682,7 @@ Supplementary signals MUST NOT change overallDecision from pass to fail automati
 
 #### 7.7.2 Anchoring and signature
 
-- **Anchor.** The composite record MUST be anchored via SR-2 at address `dacs2:composite:{jobId}:{evaluatedParty}` (or substrate equivalent). `{evaluatedParty}` is a ClaimReference and a CF-4 variable segment, so it MUST be percent-encoded before assembly (§6.3.4).
+- **Anchor.** The composite record MUST be anchored via SR-2 at address `dacs2:composite:{jobId}:{evaluatedParty}` (or substrate equivalent). `{evaluatedParty}` is a ClaimReference and a CF-4 variable segment, so it MUST be percent-encoded before assembly (CORE §B.1).
 - **Record.** The anchor reference is recorded in the DACS-5 session record.
 - **Sign.** The composite record’s signature MUST be produced by the verifier (the party running Vet on the counterparty) over the domain-separated payload per §B.7:
 
