@@ -141,23 +141,23 @@ Surfaced reading DACS-2 (the CF-4 reference in CM-2, 2026-06-06). The **types** 
 
 **Already in CORE (correct):** SIG-1..5 (§B.7), CF-1 (§B.2), GOV-1..3 (§11).
 
-**Hoist into CORE before the v0.2 split (currently mis-homed in a module):**
+**Hoist into CORE — EXECUTED 2026-06-09** (on the `spec-compression` branch, full-renumber approach; rule text moved verbatim, module left a 0-MUST pointer, only rule-specific `§`-cites repointed; concatenated MUST total held at 536, 5 validators + 35 tests green after each):
 
-| Family | What | Current home | Why it's cross-cutting |
+| Family | What | Move | Status |
 |---|---|---|---|
-| **CF-2, CF-3** | ClaimReference canonical byte form / identity | DACS-1 §6.3.1 | DACS-1 matching, DACS-5 reputation keying + replay defence |
-| **CF-4** | logical-address delimiter encoding | DACS-1 §6.3.4 | addresses in DACS-1 / 2 / 4 / 5 |
-| **CD-1** | canonical decimal | DACS-3 §8.5.1 | DACS-3 pricing + DACS-4 settlement amounts |
-| **ST-1..8** | session state machine | DACS-5 §10.3.1 | the session model; DACS-4 references it (settle-asymmetric / ST-8) |
+| **CF-2, CF-3** | ClaimReference canonical byte form / identity | DACS-1 §6.3.1 → **CORE §B.1** | ✅ done (commit 9341caa) |
+| **CF-4** | logical-address delimiter encoding | DACS-1 §6.3.4 → **CORE §B.1** | ✅ done (9341caa) |
+| **CD-1** | canonical decimal | DACS-3 §8.5.1 → **CORE §B.2** | ✅ done (commit 4818c84) |
+| **ST-1..8** | session state machine | DACS-5 §10.3.1 | ⛔ **left in DACS-5 (steward decision 2026-06-09)** — too deeply coupled to DACS-5 (state→bundle-outcome mapping, reputation §10.5/§10.11, bundle production §10.4.3) and forward-references every stage; hoisting would make CORE depend on all five modules and lose its self-contained character. DACS-4 etc. cite it by rule-ID / §10.3.1 as today. |
 
-After the move, CORE holds the full **universal-mechanisms** set (SIG + CF-* + CD-1 + ST-* + GOV + the phase-handler contract), and each module keeps only its stage-specific families:
+After the moves, CORE holds the **universal-mechanisms** set (SIG + CF-1..4 + CD-1 + GOV + the phase-handler contract), and each module keeps its stage-specific families — **plus ST-1..8, which stays in DACS-5** per the decision above:
 - DACS-1: BP, BR, LP, LR, IT (**MA / match() is borderline** — the Identify↔Vet bridge; deep-dive §4 already flags it for Core).
 - DACS-2: CM, RA, RAV, PSP, VP-R, VP-C, VPC, WN.
 - DACS-3: CH, SE, RFQ, PS, CA.
 - DACS-4: PC, HTLC, RD, AMEND, PIPE, RAV-R.
-- DACS-5: RT.
+- DACS-5: RT, **ST** (session state machine — cross-cutting but DACS-5-resident by decision).
 
-Do this at the physical Core/module split (§7 step "v0.2"), not before — it churns cross-references (a `§6.3.4` CF-4 cite becomes `[CORE: CF-4]`, etc.). It's a *move*, not a rewrite: the rule text is unchanged, only its home document.
+The CF/CD moves were a *move, not a rewrite* (rule text unchanged, only its home document + the rule-specific cites). **MA / match()** remains a future candidate (not done in this pass).
 
 **Editorial / completeness fixes for v0.2 (text-only, separate from the moves above).** Surfaced by the readability passes; tracked on **ROADMAP.md → Part 1 → Identity & vetting (DACS-1 / DACS-2)** (authoritative there, listed here so the v0.2 cut picks them up):
 - **DACS-2 §7.9 conformance-summary completeness** — the role→rule-range table omits PSP-1..5, WN-1..6, GOV-2/3, PA-1..3 (all carry MUSTs). Assign each family an owning role and add rows. No rule-text change.
