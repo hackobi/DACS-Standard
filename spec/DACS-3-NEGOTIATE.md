@@ -396,15 +396,7 @@ type AgreementSignature = {
 The agreement’s canonical form is the RFC 8785 JCS serialisation with the `signatures` field omitted. The agreement hash is sha256(canonical_form), hex-encoded, and each `AgreementSignature.value` is computed over the domain-separated payload per §B.7:
 signed_bytes := "dacs-agreement:v1:" || agreement_hash
 
-**Rule CD-1 (canonical decimal).** RFC 8785 JCS canonicalises JSON *numbers* but preserves *string* bytes verbatim — and amounts are strings — so two parties formatting the same economic value differently (e.g. `"1.50"` vs `"1.5"`) would otherwise produce different bytes, hashes, and signatures. Every `PriceTerm.amount` string MUST be in minimal-digit canonical decimal form:
-
-- no leading zeros (except a single `0` before the decimal point);
-- no trailing zeros after the decimal point;
-- `.` as the only separator;
-- no `+` sign;
-- no exponent.
-
-Producers MUST canonicalise `amount` per CD-1 before computing any agreement hash, `SettlementEvidence` hash, or other JCS hash; verifiers MUST canonicalise `amount` per CD-1 before the §8.5.2 price-band and price-equality comparisons. Two parties formatting the same value differently MUST therefore reproduce identical canonical bytes, hashes, and signatures.
+**Decimal amounts (CD-1).** Every `PriceTerm.amount` is in minimal-digit canonical decimal form per **rule CD-1 (CORE §B.2)** — producers canonicalise before the agreement hash, verifiers before the §8.5.2 price-band and price-equality comparisons.
 
 **Verification & required signers.** Verifiers MUST recompute the canonical form, agreement hash, and domain-separated payload, and for each required party, resolve the primary claim’s key (per DACS-2 verification) and verify the signature. Required signers by pattern:
 
@@ -426,7 +418,7 @@ A verifier MUST validate the agreement against its referenced listing — checke
 
 1. **Currency** — `terms.price.currency` MUST equal the listing pricing currency (negotiable pricing → `bandCenter.currency`; fixed pricing → the listed price currency). A band or equality comparison across differing currencies MUST be rejected **before any amount comparison**.
 2. **Price within band** — `terms.price` MUST lie within the listing’s pricing band:
-   - *Negotiable pricing* — within the band declared by the negotiable variant's `minPct` / `maxPct` (non-negative percentages) around `bandCenter`. The admissible band is the **inclusive** interval [`bandCenter.amount × (100 − minPct) / 100`, `bandCenter.amount × (100 + maxPct) / 100`]. Each computed bound MUST be **rounded half-up to the number of fractional digits of `bandCenter.amount` in its CD-1 canonical form** (§8.5.1) — NOT to any "currency precision", which is undefined at listing time (settlement precision is tied to `rail.asset.decimals`, not the listing currency) — then canonicalised per CD-1. `terms.price.amount`, compared as a full-precision CD-1 decimal, MUST be ≥ the lower bound and ≤ the upper bound (boundaries inclusive). A verifier MUST reject the listing if the computed lower bound is ≤ 0.
+   - *Negotiable pricing* — within the band declared by the negotiable variant's `minPct` / `maxPct` (non-negative percentages) around `bandCenter`. The admissible band is the **inclusive** interval [`bandCenter.amount × (100 − minPct) / 100`, `bandCenter.amount × (100 + maxPct) / 100`]. Each computed bound MUST be **rounded half-up to the number of fractional digits of `bandCenter.amount` in its CD-1 canonical form** (CORE §B.2) — NOT to any "currency precision", which is undefined at listing time (settlement precision is tied to `rail.asset.decimals`, not the listing currency) — then canonicalised per CD-1. `terms.price.amount`, compared as a full-precision CD-1 decimal, MUST be ≥ the lower bound and ≤ the upper bound (boundaries inclusive). A verifier MUST reject the listing if the computed lower bound is ≤ 0.
    - *fixed-price over negotiable pricing* — if `derivedFromPattern == "fixed-price"`, `terms.price` MUST instead equal `bandCenter` exactly per CD-1, not merely lie within the band (see PS-3).
    - *Fixed pricing* — equal to the listed price.
 3. **Rail** — `terms.rail` MUST appear in `listing.acceptedRails`.

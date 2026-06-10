@@ -55,7 +55,7 @@ type PricingSpec =
 
 type PriceTerm = {
 
-  amount: string                       // canonical decimal string (rule CD-1, §8.5.1): minimal-digit, no leading/trailing zeros, no exponent; MUST be positive (see normative rule below)
+  amount: string                       // canonical decimal string (rule CD-1, CORE §B.2): minimal-digit, no leading/trailing zeros, no exponent; MUST be positive (see normative rule below)
 
   currency: string                     // ISO 4217 fiat OR asset id (e.g. "usd-stablecoin", "USDC", "SOL")
 
@@ -747,7 +747,7 @@ A listing’s pipeline declares the order of payment and delivery phases. Common
 **x402 payment-receipt forgery.** *Threat:* a server claims payment it did not receive. *Mitigation:* x402 settles on-chain, so the primary audit is verifying the anchored `settlementTxHash` against the settlement chain — like the `evm` rail, not server- or facilitator-forgeable (§9.5.7); where no settlement tx is returned, verification falls back to the facilitator-signed receipt (processor-attested, not chain-verified). Buyer-side x402 wallets SHOULD keep a local record of submitted payments.
 **Delivery non-delivery.** *Threat:* seller signals payment received, never delivers. *Mitigation:* outside DACS-4’s remit; this is a DACS-3 / DACS-5 issue (the deliver-* phase MUST return ok: false on missing deliverable; DACS-5 records the failure; reputation impact accrues). Listings handling expensive non-recoverable deliveries SHOULD use escrow pipelines (pay-cross-chain-htlc) where the seller’s payment is contingent on demonstrable delivery.
 **Refund laundering.** *Threat:* a seller refunds to quietly unwind a failed delivery without recording failure. *Mitigation:* SettlementAmendments are anchored, signed, and included in DACS-5 bundles, so the trail shows both the original payment and the later refund; reputation derivation MUST treat refunded sessions appropriately. The inverse — a refund against a non-existent/failure-outcome record, or an over-refund — is guarded by AMEND-1..4 (§9.7.1).
-**Decimal-overflow in cross-decimal pay paths.** *Threat:* converting `amount.amount` to on-chain integer units overflows or mis-rounds. *Mitigation:* the §9.5.2/§9.5.3 procedures mandate string-decimal arithmetic with no float, and `PriceTerm.amount` is canonical per CD-1 (§8.5.1); rail authors MUST specify `decimals` exactly and phase handlers MUST validate `amount.amount` precision against `rail.asset.decimals` (excess precision is an error).
+**Decimal-overflow in cross-decimal pay paths.** *Threat:* converting `amount.amount` to on-chain integer units overflows or mis-rounds. *Mitigation:* the §9.5.2/§9.5.3 procedures mandate string-decimal arithmetic with no float, and `PriceTerm.amount` is canonical per CD-1 (CORE §B.2); rail authors MUST specify `decimals` exactly and phase handlers MUST validate `amount.amount` precision against `rail.asset.decimals` (excess precision is an error).
 **Pinned-rail vs latest-rail at settle time.** *Threat:* the rail registry changes between agreement commit and settle execution. *Mitigation:* the rail is pinned at session start (per railRegistryVersion in SessionContext). Settle MUST use the pinned rail definition, even if the registry has since superseded it.
 
 ### 9.14 Phase parameters reference card
