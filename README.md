@@ -158,3 +158,9 @@ This fork carries a separate DACS/2 draft under [`dacs-2/`](dacs-2/). DACS/2 is 
 
 Start with [`dacs-2/README.md`](dacs-2/README.md) and [`dacs-2/MIGRATION.md`](dacs-2/MIGRATION.md).
 
+Validate the fork-native package with:
+
+```bash
+python3 scripts/validate_dacs2.py
+```
+

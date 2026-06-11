@@ -40,5 +40,8 @@ jobs:
       - name: Validate documentation links
         run: python3 scripts/validate-docs.py
 
+      - name: Validate DACS/2 fork-native package
+        run: python3 scripts/validate_dacs2.py
+
       - name: Run unit tests
         run: python3 -m unittest discover tests -v
