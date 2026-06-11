@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacs.demos.network/schemas/2/settlement-evidence.schema.json",
+  "$comment": "Signature separator: dacs-evidence:v2: (spec/06 §6). Anchored at (executor, dacs2:evidence:{jobId}:{phaseIndex}).",
+  "title": "SettlementEvidence",
+  "type": "object",
+  "required": ["dacs", "jobId", "phase", "outcome", "observedAt", "sig"],
+  "properties": {
+    "dacs": { "const": "2" },
+    "jobId": { "$ref": "common.json#/$defs/ulid" },
+    "phase": {
+      "type": "object",
+      "required": ["index", "kind"],
+      "properties": { "index": { "type": "integer", "minimum": 0 }, "kind": { "type": "string" } }
+    },
+    "outcome": { "enum": ["success", "failure"] },
+    "reason": { "type": "string", "maxLength": 2000 },
+    "binding": {
+      "type": "object",
+      "required": ["rule", "material"],
+      "properties": {
+        "rule": { "enum": ["SB-1", "SB-2", "SB-3", "SB-4"] },
+        "material": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "paymentTxRefs": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "object", "required": ["kind", "txHash"], "properties": { "kind": { "const": "demos" }, "txHash": { "type": "string" } } },
+          { "type": "object", "required": ["kind", "chainId", "txHash"], "properties": { "kind": { "const": "evm" }, "chainId": { "type": "integer" }, "txHash": { "type": "string" } } },
+          { "type": "object", "required": ["kind", "cluster", "signature"], "properties": { "kind": { "const": "solana" }, "cluster": { "type": "string" }, "signature": { "type": "string" } } },
+          { "type": "object", "required": ["kind", "depositTxHash"], "properties": { "kind": { "const": "demos-escrow" }, "depositTxHash": { "type": "string" }, "claimTxHash": { "type": "string" }, "refundTxHash": { "type": "string" } } },
+          { "type": "object", "required": ["kind", "txHash"], "properties": { "kind": { "const": "demoswork" }, "txHash": { "type": "string" }, "stepResults": { "type": "array" } } },
+          { "type": "object", "required": ["kind", "bridgeId", "originChain", "destinationChain", "lockTxHash"], "properties": { "kind": { "const": "bridge" }, "bridgeId": { "type": "string" }, "originChain": { "type": "string" }, "destinationChain": { "type": "string" }, "lockTxHash": { "type": "string" }, "releaseTxHash": { "type": "string" } } },
+          { "type": "object", "required": ["kind"], "properties": { "kind": { "enum": ["htlc-lock", "htlc-reveal", "htlc-claim", "htlc-refund"] } }, "additionalProperties": true },
+          { "type": "object", "required": ["kind", "httpResource", "paymentReceiptHash"], "properties": { "kind": { "const": "x402" }, "httpResource": { "type": "string" }, "paymentReceiptHash": { "type": "string" }, "settlementTxHash": { "type": "string" } } },
+          { "type": "object", "required": ["kind", "mandateId", "providerRef"], "properties": { "kind": { "const": "ap2" }, "mandateId": { "type": "string" }, "providerRef": { "type": "string" } } }
+        ]
+      }
+    },
+    "paymentAmount": { "$ref": "common.json#/$defs/priceTerm" },
+    "paymentFee": { "$ref": "common.json#/$defs/priceTerm" },
+    "deliverableContentHash": { "$ref": "common.json#/$defs/sha256" },
+    "deliverableAnchor": { "$ref": "common.json#/$defs/anchor" },
+    "attestationRef": { "$ref": "common.json#/$defs/artifactRef" },
+    "settlementFinality": {
+      "type": "object",
+      "required": ["model", "finalityObservedAt"],
+      "properties": {
+        "model": { "enum": ["demos-block", "block-depth", "htlc-reveal", "bridge-release", "provider-receipt"] },
+        "finalityBlocks": { "type": "integer", "minimum": 0 },
+        "finalityObservedAt": { "$ref": "common.json#/$defs/isoDateTime" }
+      }
+    },
+    "amendmentRefs": { "type": "array", "items": { "$ref": "common.json#/$defs/artifactRef" } },
+    "supersedesEvidenceRef": { "$ref": "common.json#/$defs/artifactRef" },
+    "observedAt": { "$ref": "common.json#/$defs/isoDateTime" },
+    "sig": { "$ref": "common.json#/$defs/sig" }
+  },
+  "allOf": [
+    {
+      "$comment": "EV-1: binding REQUIRED on pay-* evidence; paymentAmount + settlementFinality REQUIRED on success",
+      "if": {
+        "properties": { "phase": { "properties": { "kind": { "pattern": "^pay-" } } }, "outcome": { "const": "success" } }
+      },
+      "then": { "required": ["binding", "paymentTxRefs", "paymentAmount", "settlementFinality"] }
+    }
+  ]
+}

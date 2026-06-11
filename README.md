@@ -152,3 +152,9 @@ multi-party governance is named follow-on work (§11.2.6 of the spec).
 
 Released under the [MIT License](./LICENSE). The specification text and any
 reference code in this repository are free to read, implement, and build on.
+## Fork-native DACS/2 track
+
+This fork carries a separate DACS/2 draft under [`dacs-2/`](dacs-2/). DACS/2 is not an upstream v0.1 expansion PR; it is a fork-native second-edition track that preserves the portable artifact layer while binding lifecycle interoperability to concrete Demos node surfaces.
+
+Start with [`dacs-2/README.md`](dacs-2/README.md) and [`dacs-2/MIGRATION.md`](dacs-2/MIGRATION.md).
+

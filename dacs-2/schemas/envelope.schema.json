@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacs.demos.network/schemas/2/envelope.schema.json",
+  "$comment": "Signature separator: dacs-envelope:v2: (spec/05 §1)",
+  "title": "DacsEnvelope",
+  "type": "object",
+  "required": ["dacs", "channelId", "jobId", "seq", "from", "to", "sentAt", "kind", "body", "sig"],
+  "properties": {
+    "dacs": { "const": "2" },
+    "channelId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "jobId": { "$ref": "#/$defs/ulid" },
+    "seq": { "type": "integer", "minimum": 1 },
+    "from": { "$ref": "#/$defs/demosRoot" },
+    "to": { "$ref": "#/$defs/demosRoot" },
+    "sentAt": { "type": "string", "format": "date-time" },
+    "kind": {
+      "enum": ["offer", "counter", "accept", "reject", "cancel", "abort", "bundle-present", "vet-result",
+               "agreement-cosign", "settle-notice", "deliver-notice", "bundle-cosign-request", "bundle-cosign",
+               "dispute-open", "dispute-evidence", "ping"]
+    },
+    "body": { "type": "object" },
+    "refs": {
+      "type": "object",
+      "properties": { "repliesTo": { "$ref": "#/$defs/sha256" } },
+      "additionalProperties": true
+    },
+    "sig": { "$ref": "#/$defs/sig" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "enum": ["offer", "counter"] } } },
+      "then": {
+        "properties": {
+          "body": {
+            "type": "object",
+            "required": ["price", "deliverable", "rail", "deadline", "expiresAt"],
+            "properties": {
+              "price": { "$ref": "#/$defs/priceTerm" },
+              "deliverable": { "type": "object" },
+              "rail": { "type": "object", "required": ["railId"] },
+              "deadline": { "type": "string", "format": "date-time" },
+              "expiresAt": { "type": "string", "format": "date-time" },
+              "bond": { "type": "object", "properties": { "escrowTxHash": { "type": "string" } } },
+              "notes": { "type": "string", "maxLength": 4000 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "accept" } } },
+      "then": {
+        "properties": {
+          "body": {
+            "type": "object",
+            "required": ["acceptsEnvelope", "agreementHash"],
+            "properties": {
+              "acceptsEnvelope": { "$ref": "#/$defs/sha256" },
+              "agreementHash": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "cancel" } } },
+      "then": {
+        "properties": {
+          "body": {
+            "type": "object",
+            "required": ["policyRef"],
+            "properties": { "policyRef": { "enum": ["commit", "pre-settlement", "pre-delivery"] } }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "ulid": { "type": "string", "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "demosRoot": { "type": "string", "pattern": "^demos:0x[0-9a-f]{64}$" },
+    "sig": {
+      "type": "object",
+      "required": ["algorithm", "signer", "value"],
+      "properties": {
+        "algorithm": { "enum": ["ed25519", "falcon", "ml-dsa"] },
+        "signer": { "type": "string" },
+        "value": { "type": "string", "pattern": "^[0-9a-f]+$" }
+      }
+    },
+    "priceTerm": {
+      "type": "object",
+      "required": ["amount", "currency"],
+      "properties": {
+        "amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]*[1-9])?$" },
+        "currency": { "type": "string" },
+        "unit": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacs.demos.network/schemas/2/listing.schema.json",
+  "$comment": "Signature separator: dacs-listing:v2: — over all fields except status & signature (spec/04 §1)",
+  "title": "Listing",
+  "type": "object",
+  "required": ["dacs", "listingId", "listingVersion", "seller", "offering", "buyerRequirement", "pipeline", "pricing", "terms", "validity", "status", "signature"],
+  "properties": {
+    "dacs": { "const": "2" },
+    "listingId": { "type": "string", "pattern": "^[A-Za-z0-9._~-]{1,128}$" },
+    "listingVersion": { "type": "integer", "minimum": 1 },
+    "seller": {
+      "type": "object",
+      "required": ["root", "bundle", "displayName", "endpoints"],
+      "properties": {
+        "root": { "$ref": "common.json#/$defs/demosRoot" },
+        "bundle": { "type": "object" },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "endpoints": {
+          "type": "object",
+          "properties": {
+            "im": { "type": "object", "required": ["signalingUrl"], "properties": { "signalingUrl": { "type": "string", "format": "uri" } } },
+            "l2ps": { "type": "object", "required": ["uid"], "properties": { "uid": { "type": "string" } } },
+            "https": { "type": "object", "required": ["url"], "properties": { "url": { "type": "string", "format": "uri" } } }
+          },
+          "minProperties": 1
+        }
+      }
+    },
+    "offering": {
+      "type": "object",
+      "required": ["title", "description", "category", "tags", "deliverable"],
+      "properties": {
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 4000 },
+        "category": { "type": "string", "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)*$" },
+        "tags": { "type": "array", "maxItems": 16, "items": { "type": "string", "maxLength": 32 } },
+        "deliverable": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": { "kind": { "enum": ["storage-program", "ipfs", "entitlement", "attested-payload", "external"] } }
+        },
+        "extendedDescription": { "$ref": "common.json#/$defs/anchor" }
+      }
+    },
+    "buyerRequirement": { "type": "object" },
+    "pipeline": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "enum": ["vet-credentials", "negotiate-fixed-price", "negotiate-rfq", "negotiate-sealed-envelope",
+                     "commit-agreement", "pay-demos-native", "pay-demos-d402", "pay-demos-escrow",
+                     "pay-demoswork-conditional", "pay-bridge-usdc", "pay-xm", "pay-cross-chain-htlc",
+                     "pay-evm-erc20", "pay-solana-spl", "pay-x402", "pay-ap2",
+                     "deliver-storage-program", "deliver-ipfs", "deliver-entitlement", "deliver-attested-payload",
+                     "rate", "finalise"]
+          },
+          "parameters": { "type": "object" }
+        }
+      }
+    },
+    "pricing": {
+      "oneOf": [
+        { "type": "object", "required": ["model", "price"], "properties": { "model": { "const": "fixed" }, "price": { "$ref": "common.json#/$defs/priceTerm" } } },
+        { "type": "object", "required": ["model", "bandCenter", "minPct", "maxPct"],
+          "properties": { "model": { "const": "negotiable" }, "bandCenter": { "$ref": "common.json#/$defs/priceTerm" },
+                          "minPct": { "$ref": "common.json#/$defs/cd1" }, "maxPct": { "$ref": "common.json#/$defs/cd1" } } },
+        { "type": "object", "required": ["model", "selectionRule"],
+          "properties": { "model": { "const": "auction" }, "reservePrice": { "$ref": "common.json#/$defs/priceTerm" },
+                          "selectionRule": { "type": "string" } } }
+      ]
+    },
+    "acceptedRails": { "type": "array", "items": { "type": "object", "required": ["railId"], "properties": { "railId": { "type": "string" }, "parameters": { "type": "object" } } } },
+    "terms": {
+      "type": "object",
+      "properties": {
+        "deadlineSecAfterCommit": { "type": "integer", "minimum": 1 },
+        "acceptanceModel": { "const": "auto-accept" },
+        "cancellationPolicy": {
+          "type": "object",
+          "required": ["allowedUntil"],
+          "properties": { "allowedUntil": { "enum": ["commit", "pre-settlement", "pre-delivery"] }, "feePct": { "$ref": "common.json#/$defs/cd1" } }
+        },
+        "listingBond": { "$ref": "common.json#/$defs/priceTerm" },
+        "jurisdictions": { "type": "array", "items": { "type": "string" } },
+        "termsOfService": { "$ref": "common.json#/$defs/anchor" },
+        "arbitrators": { "type": "array", "items": { "$ref": "common.json#/$defs/demosRoot" } }
+      }
+    },
+    "validity": {
+      "type": "object",
+      "required": ["notBefore"],
+      "properties": { "notBefore": { "type": "string", "format": "date-time" }, "notAfter": { "type": "string", "format": "date-time" } }
+    },
+    "status": { "enum": ["active", "paused", "revoked"] },
+    "signature": { "$ref": "common.json#/$defs/sig" }
+  }
+}

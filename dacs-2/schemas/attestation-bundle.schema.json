@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacs.demos.network/schemas/2/attestation-bundle.schema.json",
+  "$comment": "Signature separator: dacs-bundle:v2: (spec/07 §4). anchoredByRole is EXCLUDED from contentHash (BD-1). Anchored at (party, dacs2:bundle:{jobId}).",
+  "title": "AttestationBundle",
+  "type": "object",
+  "required": ["dacs", "jobId", "outcome", "anchoredByRole", "listingRef", "parties", "phaseSummary", "settlementEvidence", "registryVersion", "finalisedAt", "signatures"],
+  "properties": {
+    "dacs": { "const": "2" },
+    "jobId": { "$ref": "common.json#/$defs/ulid" },
+    "outcome": { "$ref": "common.json#/$defs/outcome" },
+    "anchoredByRole": { "enum": ["buyer", "seller"] },
+    "listingRef": {
+      "type": "object",
+      "required": ["listingId", "listingVersion", "contentHash"],
+      "properties": {
+        "listingId": { "type": "string" },
+        "listingVersion": { "type": "integer" },
+        "contentHash": { "$ref": "common.json#/$defs/sha256" },
+        "programAddress": { "type": "string" }
+      }
+    },
+    "agreementRef": { "$ref": "common.json#/$defs/artifactRef" },
+    "commitRef": {
+      "type": "object",
+      "required": ["programAddress", "txHash"],
+      "properties": { "programAddress": { "type": "string" }, "txHash": { "type": "string" } }
+    },
+    "parties": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["role", "root", "bundleHash"],
+        "properties": {
+          "role": { "enum": ["buyer", "seller"] },
+          "root": { "$ref": "common.json#/$defs/demosRoot" },
+          "bundleHash": { "$ref": "common.json#/$defs/sha256" }
+        }
+      }
+    },
+    "phaseSummary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "kind", "outcome", "counterAck"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0 },
+          "kind": { "type": "string" },
+          "outcome": { "enum": ["ok", "fail", "skipped"] },
+          "errorClass": { "$ref": "common.json#/$defs/errorClass" },
+          "executor": { "enum": ["buyer", "seller", "both"] },
+          "txRefs": { "type": "array" },
+          "attestationRef": { "$ref": "common.json#/$defs/artifactRef" },
+          "counterAck": {
+            "oneOf": [{ "$ref": "common.json#/$defs/sha256" }, { "type": "null" }],
+            "$comment": "contentHash of the counterparty's settle-notice/deliver-notice envelope; null = un-acked (FA-1: excluded from fault metrics on divergence)"
+          }
+        }
+      }
+    },
+    "vetRecords": { "type": "array", "items": { "$ref": "common.json#/$defs/artifactRef" } },
+    "settlementEvidence": { "type": "array", "items": { "$ref": "common.json#/$defs/artifactRef" } },
+    "amendments": { "type": "array", "items": { "$ref": "common.json#/$defs/artifactRef" } },
+    "ratingRefs": { "type": "array", "items": { "$ref": "common.json#/$defs/artifactRef" } },
+    "disputeRefs": { "type": "array", "items": { "$ref": "common.json#/$defs/artifactRef" } },
+    "registryVersion": { "$ref": "common.json#/$defs/sha256" },
+    "finalisedAt": { "$ref": "common.json#/$defs/isoDateTime" },
+    "signatures": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "$ref": "common.json#/$defs/sig" } }
+  },
+  "$comment_state_outcome_map": "ST-8 total mapping: finalised→completed; cancelled→cancelled; vet/negotiate/commit/settle-failed→failed-perm|failed-counterparty per errorClass; failed-substrate→failed-substrate; aborts map per perspective (aborted-by-self|aborted-by-other)."
+}

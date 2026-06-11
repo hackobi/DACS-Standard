@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacs.demos.network/schemas/2/common.json",
+  "title": "DACS/2 shared definitions",
+  "$defs": {
+    "ulid": { "type": "string", "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "demosAccount": { "type": "string", "pattern": "^0x[0-9a-f]{64}$" },
+    "demosRoot": { "type": "string", "pattern": "^demos:0x[0-9a-f]{64}$" },
+    "claimReference": { "type": "string", "pattern": "^[a-z][a-z0-9-]*:.+$" },
+    "cd1": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]*[1-9])?$" },
+    "isoDateTime": { "type": "string", "format": "date-time" },
+    "sig": {
+      "type": "object",
+      "required": ["algorithm", "signer", "value"],
+      "properties": {
+        "algorithm": { "enum": ["ed25519", "falcon", "ml-dsa"] },
+        "signer": { "$ref": "#/$defs/claimReference" },
+        "value": { "type": "string", "pattern": "^[0-9a-f]+$" }
+      },
+      "additionalProperties": true
+    },
+    "priceTerm": {
+      "type": "object",
+      "required": ["amount", "currency"],
+      "properties": {
+        "amount": { "$ref": "#/$defs/cd1" },
+        "currency": { "type": "string", "minLength": 1, "maxLength": 16 },
+        "unit": { "type": "string", "maxLength": 32 }
+      },
+      "additionalProperties": false
+    },
+    "anchor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "address", "programName", "deployer"],
+          "properties": {
+            "kind": { "const": "storage-program" },
+            "address": { "type": "string", "pattern": "^stor-[0-9a-f]+$" },
+            "programName": { "type": "string" },
+            "deployer": { "$ref": "#/$defs/demosAccount" },
+            "field": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "cid", "contentHash"],
+          "properties": {
+            "kind": { "const": "ipfs" },
+            "cid": { "type": "string" },
+            "contentHash": { "$ref": "#/$defs/sha256" },
+            "sizeBytes": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "url", "contentHash"],
+          "properties": {
+            "kind": { "const": "https" },
+            "url": { "type": "string", "format": "uri" },
+            "contentHash": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      ]
+    },
+    "artifactRef": {
+      "type": "object",
+      "required": ["kind", "contentHash"],
+      "properties": {
+        "kind": { "type": "string" },
+        "contentHash": { "$ref": "#/$defs/sha256" },
+        "anchor": { "$ref": "#/$defs/anchor" }
+      }
+    },
+    "errorClass": { "enum": ["permanent", "transient", "counterparty", "substrate", "settlement-atomicity"] },
+    "outcome": { "enum": ["completed", "cancelled", "failed-perm", "failed-counterparty", "failed-substrate", "aborted-by-self", "aborted-by-other"] }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dacs.demos.network/schemas/2/agreement.schema.json",
+  "$comment": "Signature separator: dacs-agreement:v2: (spec/05 §4)",
+  "title": "AgreementDocument",
+  "type": "object",
+  "required": ["dacs", "jobId", "listingRef", "parties", "terms", "derivedFrom", "generatedAt", "signatures"],
+  "properties": {
+    "dacs": { "const": "2" },
+    "jobId": { "$ref": "common.json#/$defs/ulid" },
+    "listingRef": {
+      "type": "object",
+      "required": ["listingId", "listingVersion", "contentHash", "programAddress"],
+      "properties": {
+        "listingId": { "type": "string" },
+        "listingVersion": { "type": "integer", "minimum": 1 },
+        "contentHash": { "$ref": "common.json#/$defs/sha256" },
+        "programAddress": { "type": "string", "pattern": "^stor-[0-9a-f]+$" }
+      }
+    },
+    "parties": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["role", "root", "bundleHash", "sessionNonce"],
+        "properties": {
+          "role": { "enum": ["buyer", "seller"] },
+          "root": { "$ref": "common.json#/$defs/demosRoot" },
+          "bundleHash": { "$ref": "common.json#/$defs/sha256" },
+          "sessionNonce": { "type": "string", "pattern": "^[0-9a-f]{32,}$" }
+        }
+      }
+    },
+    "terms": {
+      "type": "object",
+      "required": ["deliverable", "price", "rail", "deadline"],
+      "properties": {
+        "deliverable": {
+          "type": "object",
+          "required": ["deliverableType", "hash"],
+          "properties": {
+            "deliverableType": { "type": "string" },
+            "hash": { "$ref": "common.json#/$defs/sha256" }
+          }
+        },
+        "price": { "$ref": "common.json#/$defs/priceTerm" },
+        "rail": {
+          "type": "object",
+          "required": ["railId"],
+          "properties": { "railId": { "type": "string" }, "parameters": { "type": "object" } }
+        },
+        "deadline": { "$ref": "common.json#/$defs/isoDateTime" },
+        "cancellation": {
+          "type": "object",
+          "required": ["allowedUntil"],
+          "properties": {
+            "allowedUntil": { "enum": ["commit", "pre-settlement", "pre-delivery"] },
+            "feePct": { "$ref": "common.json#/$defs/cd1" }
+          }
+        },
+        "optionFee": { "$ref": "common.json#/$defs/priceTerm" },
+        "pairSalt": { "type": "string", "pattern": "^[0-9a-f]{32,}$" }
+      }
+    },
+    "derivedFrom": {
+      "type": "object",
+      "required": ["pattern", "envelopeHash"],
+      "properties": {
+        "pattern": { "enum": ["fixed-price", "rfq", "sealed-envelope"] },
+        "envelopeHash": { "$ref": "common.json#/$defs/sha256" }
+      }
+    },
+    "generatedAt": { "$ref": "common.json#/$defs/isoDateTime" },
+    "signatures": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "common.json#/$defs/sig" } }
+  }
+}
