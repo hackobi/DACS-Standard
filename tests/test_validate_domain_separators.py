@@ -19,7 +19,7 @@ def load_validator():
 class DomainSeparatorValidationTests(unittest.TestCase):
     def test_repository_spec_domain_separators_are_registered(self):
         validator = load_validator()
-        self.assertEqual(validator.validate_spec(ROOT / "spec" / "SPECIFICATION.md"), [])
+        self.assertEqual(validator.validate_spec(), [])
 
     def test_reports_unregistered_quoted_domain_prefix(self):
         with TemporaryDirectory() as tmp:

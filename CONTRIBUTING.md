@@ -90,3 +90,11 @@ Keep pull requests narrowly scoped:
 Issue templates under [`.github/ISSUE_TEMPLATE/`](./.github/ISSUE_TEMPLATE/) mirror
 the feedback format above for spec defects, implementation reports, and editorial
 fixes.
+
+## Built something with DACS?
+
+Tools, reference implementations, integrations, and apps belong in the
+[Community repo](https://github.com/DACS-Agent-commerce/Community) — a single PR
+with an honest conformance declaration (`vector-tested` / `exercises-spec` /
+`prototype`). This repo stays spec-only; building against the standard and
+reporting where it breaks is the contribution we value most.

@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import specsource  # noqa: E402
 DEFAULT_VECTOR_DIR = ROOT / "conformance" / "vectors"
 DEFAULT_MANIFEST = ROOT / "conformance" / "MANIFEST.json"
 EXPECTED_STAGES = ["DACS-1", "DACS-2", "DACS-3", "DACS-4", "DACS-5"]
@@ -44,7 +46,7 @@ DOMAIN_RE = re.compile(r'"(dacs[-a-z0-9]*:v1:)"')
 
 
 def load_registered_domain_separators(root: Path = ROOT) -> set[str]:
-    spec_text = (root / "spec" / "SPECIFICATION.md").read_text(encoding="utf-8")
+    spec_text = specsource.spec_text(root)
     start_marker = "The v0.1 registry of domain separators is closed:"
     end_marker = "**Payload shape — single-hash vs composite.**"
     start = spec_text.find(start_marker)

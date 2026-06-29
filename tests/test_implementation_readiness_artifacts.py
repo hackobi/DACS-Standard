@@ -26,7 +26,7 @@ class ImplementationReadinessArtifactTests(unittest.TestCase):
         for term in ["IdentityBundle", "AttestationBundle", "RatingRecord", "ClaimReference", "SettlementEvidence"]:
             with self.subTest(term=term):
                 self.assertIn(term, text)
-        self.assertIn("../spec/SPECIFICATION.md#chapter-13-glossary", text)
+        self.assertIn("../spec/GLOSSARY.md", text)
 
     def test_rule_id_index_covers_expected_rule_families(self):
         index = ROOT / "docs" / "rule-id-index.md"
@@ -35,7 +35,7 @@ class ImplementationReadinessArtifactTests(unittest.TestCase):
         for family in ["BP-", "LP-", "SIG-", "PC-", "RT-", "RAV-"]:
             with self.subTest(family=family):
                 self.assertIn(family, text)
-        self.assertIn("../spec/SPECIFICATION.md#148-substrate-capability-tests", text)
+        self.assertIn("../spec/CONFORMANCE-PLAN.md#148-substrate-capability-tests", text)
 
     def test_operational_builder_guide_outline_covers_ops_topics(self):
         guide = ROOT / "docs" / "operational-builder-guide.md"

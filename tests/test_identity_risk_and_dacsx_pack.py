@@ -4,14 +4,13 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = ROOT / "spec" / "SPECIFICATION.md"
 ROADMAP = ROOT / "ROADMAP.md"
 VERIFY_DACSX = ROOT / "scripts" / "verify_dacsx_dispute_pack.py"
 
 
 class IdentityRiskAndDacsXPackTests(unittest.TestCase):
     def test_v01_spec_does_not_absorb_future_risk_or_dispute_improvements(self):
-        text = SPEC.read_text(encoding="utf-8")
+        text = "\n".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "spec").glob("*.md")))
         self.assertNotIn('identityTier?: "institutional" | "verified" | "self-declared"', text)
         self.assertNotIn("suspiciousPatternFlags?: string[]", text)
         self.assertNotIn("DACS-X interface seam (non-normative pack)", text)
@@ -19,10 +18,13 @@ class IdentityRiskAndDacsXPackTests(unittest.TestCase):
     def test_roadmap_tracks_identity_reputation_and_dacsx_improvements(self):
         text = ROADMAP.read_text(encoding="utf-8")
         self.assertIn("`identityTier` on IdentityBundle (#103)", text)
-        self.assertIn("`suspiciousPatternFlags` on ReputationRecord + min-bundleCount gating advice (#101)", text)
+        self.assertIn("`dacs-sybil-scan` — behavioural-Sybil flag scanner (#101)", text)
         self.assertIn("DACS-X (dispute / execution-verification)", text)
         self.assertIn("DACS-X shared dispute fixtures / verifier pack (#99)", text)
-        self.assertIn("HTLC-9 correction-amendment", text)
+        # HTLC-9 asymmetric settlement resolves via the ST-8 `settle-asymmetric` state
+        # at the settlement layer; the former "correction-amendment" close-out was retired
+        # (Round-4 R4-A, §9.5.4). The roadmap references the current mechanism.
+        self.assertIn("settle-asymmetric", text)
         self.assertIn("non-normative", text)
 
     def test_identity_tier_fixture_set_is_machine_readable(self):
@@ -43,9 +45,13 @@ class IdentityRiskAndDacsXPackTests(unittest.TestCase):
         fixture = ROOT / "conformance/fixtures/reputation/reputation-suspicious-pattern-flags.json"
         data = json.loads(fixture.read_text(encoding="utf-8"))
         self.assertEqual(data["kind"], "ReputationRiskCase")
-        record = data["reputationRecord"]
-        self.assertIsInstance(record["suspiciousPatternFlags"], list)
-        self.assertTrue(record["suspiciousPatternFlags"])
+        self.assertNotIn("reputationRecord", data)
+        derivation = data["reputationDerivation"]
+        self.assertEqual(derivation["derivationVersion"], "1")
+        self.assertIsInstance(derivation["partyPrimaryClaim"], str)
+        self.assertIn(derivation["windowingBasis"], {"finalisedAt", "sr2-anchor-timestamp"})
+        self.assertIsInstance(derivation["suspiciousPatternFlags"], list)
+        self.assertTrue(derivation["suspiciousPatternFlags"])
         self.assertEqual(data["expectedCoreMetricsUnchanged"], True)
 
     def test_dacsx_dispute_outcome_fixture_links_to_htlc9_correction(self):

@@ -79,7 +79,7 @@ substrate-to-primitive mapping and production status. The unified SDK is [`@kyne
 
 | Path | What it is |
 |------|------------|
-| [`spec/SPECIFICATION.md`](./spec/SPECIFICATION.md) | **The standard.** Full normative specification, DACS-1 … DACS-5, with conformance rules, error classes, threat model, and conformance test plan. |
+| [`spec/CORE.md`](./spec/CORE.md) | **The standard.** Full normative specification, DACS-1 … DACS-5, with conformance rules, error classes, threat model, and conformance test plan. |
 | [`docs/builders-guide.md`](./docs/builders-guide.md) | A technical case for builders — what problems DACS solves and how to evaluate it honestly. |
 | [`docs/flow-trace.md`](./docs/flow-trace.md) | End-to-end happy path as SDK-mapped pseudocode, with a sequence diagram and a verified SDK-compatibility note. |
 | [`docs/glossary-index.md`](./docs/glossary-index.md) | Non-normative index mapping key terms to their specification sections. |
@@ -91,7 +91,7 @@ substrate-to-primitive mapping and production status. The unified SDK is [`@kyne
 | [`IMPLEMENTATION_READINESS.md`](./IMPLEMENTATION_READINESS.md) | Additive validation, example, and contributor-support improvements that strengthen implementation readiness without changing v0.1 conformance semantics. |
 
 **New here?** Read the [builders guide](./docs/builders-guide.md) first, then the
-[flow trace](./docs/flow-trace.md), then the [specification](./spec/SPECIFICATION.md).
+[flow trace](./docs/flow-trace.md), then the [specification](./spec/CORE.md).
 
 ---
 
@@ -141,6 +141,13 @@ python3 -m unittest discover tests -v
 
 The pull-request workflow runs the same documentation, registry, rule-ID,
 spec-table, conformance-vector, and unit-test checks.
+
+## Community & ecosystem
+
+Tools, reference implementations, integrations, and apps built on DACS live in
+the **[Community repo](https://github.com/DACS-Agent-commerce/Community)** —
+non-normative by construction, one-PR submissions, with an honest conformance
+disclosure per project. The spec, conformance vectors, and CHANGELOG stay here.
 
 ## Governance
 

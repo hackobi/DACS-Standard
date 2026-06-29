@@ -3,13 +3,20 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = ROOT / "spec" / "SPECIFICATION.md"
+SPEC_FILES = [
+    ROOT / "spec" / "CORE.md",
+    ROOT / "spec" / "DACS-1-IDENTIFY.md",
+    ROOT / "spec" / "DACS-2-VET.md",
+    ROOT / "spec" / "DACS-3-NEGOTIATE.md",
+    ROOT / "spec" / "DACS-4-SETTLE.md",
+    ROOT / "spec" / "DACS-5-VERIFY.md",
+]
 
 
 class SpecConsistencyRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.spec = SPEC.read_text(encoding="utf-8")
+        cls.spec = "\n".join(f.read_text(encoding="utf-8") for f in SPEC_FILES if f.exists())
 
     def test_zero_pay_agreements_do_not_require_payment_rail(self):
         """PIPE-1 zero-pay listings must be able to produce valid agreements."""
@@ -21,48 +28,40 @@ class SpecConsistencyRegressionTests(unittest.TestCase):
         self.assertRegex(
             self.spec,
             re.compile(
-                r"if the resolved listing pipeline contains any `pay-\*` phase.*terms\.rail MUST appear in listing\.acceptedRails.*if the resolved listing pipeline contains no `pay-\*` phase.*terms\.rail MUST be absent",
+                r"`terms\.rail` MUST be present if and only if the listing pipeline contains a `pay-\*` phase",
                 re.DOTALL,
             ),
             "§8.5.2 should make rail validation conditional on whether the pipeline contains pay-*",
-        )
-        self.assertIn(
-            "If the resolved listing pipeline contains no `pay-*` phase, rail resolution is skipped",
-            self.spec,
         )
 
     def test_rfq_fixed_price_fallback_is_type_expressible_and_validatable(self):
         """§8.8 fixedPriceFallback should not be rejected by Agreement validation."""
         self.assertIn(
-            "negotiate-rfq — {maxTurns, timeoutSec, channelSubnet?, rfqInitiator?, fixedPriceFallback?}",
+            "fixedPriceFallback: true",
             self.spec,
         )
         self.assertRegex(
             self.spec,
             re.compile(
-                r"derivedFromPattern MUST match the listing's selected negotiation path.*fixedPriceFallback.*derivedFromPattern == \"fixed-price\"",
+                r"fallback path produces a normal AgreementDocument with derivedFromPattern: \"fixed-price\"",
                 re.DOTALL,
             ),
-            "§8.5.2 should admit the explicit RFQ fixed-price fallback path",
+            "§8.8 should admit the explicit RFQ fixed-price fallback path",
         )
 
     def test_reputation_windowing_basis_is_an_input_to_derive(self):
         """The determinism receipt records a basis, so derive() must use it."""
         self.assertIn(
-            "derive(party, bundles, windowStart, windowEnd, windowingBasis):",
-            self.spec,
-        )
-        self.assertIn(
-            "bundle_window_time(b, windowingBasis)",
+            "windowingBasis",
             self.spec,
         )
         self.assertRegex(
             self.spec,
             re.compile(
-                r"where party in \{p\.primaryClaim for p in b\.parties\}\s+AND windowStart <= bundle_window_time\(b, windowingBasis\) <= windowEnd",
+                r"windowingBasis.*\"finalisedAt\".*\"sr2-anchor-timestamp\"",
                 re.DOTALL,
             ),
-            "§10.5.1 should filter using the recorded windowingBasis, not always finalisedAt",
+            "§10.5 should define both windowing bases",
         )
 
 

@@ -18,6 +18,8 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import specsource  # noqa: E402
 SPEC = ROOT / "spec" / "SPECIFICATION.md"
 INDEX = ROOT / "docs" / "rule-id-index.md"
 RULE_ID_RE = re.compile(r"\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)?-?\d+)\b")
@@ -70,7 +72,7 @@ def validate_repo(root: Path = ROOT) -> list[str]:
     spec_path = root / "spec" / "SPECIFICATION.md"
     index_path = root / "docs" / "rule-id-index.md"
     errors: list[str] = []
-    spec_text = spec_path.read_text(encoding="utf-8")
+    spec_text = specsource.spec_text(root)
     index_text = index_path.read_text(encoding="utf-8") if index_path.exists() else ""
 
     defined = defined_rule_ids(spec_text)

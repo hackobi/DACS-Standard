@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import specsource  # noqa: E402
 SPEC = ROOT / "spec" / "SPECIFICATION.md"
 DOMAIN_RE = re.compile(r'"(dacs[-a-z0-9]*:v1:)"')
 
@@ -58,8 +60,8 @@ def used_domains(spec_text: str) -> set[str]:
     return extract_domains(spec_text)
 
 
-def validate_spec(path: Path = SPEC) -> list[str]:
-    spec_text = path.read_text(encoding="utf-8")
+def validate_spec(path: Path | None = None, root: Path = ROOT) -> list[str]:
+    spec_text = path.read_text(encoding="utf-8") if path is not None else specsource.spec_text(root)
     registered = registered_domains(spec_text)
     used = used_domains(spec_text)
     missing = sorted(used - registered)
@@ -76,7 +78,7 @@ def validate_spec(path: Path = SPEC) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate DACS domain separator registry consistency")
-    parser.add_argument("path", nargs="?", type=Path, default=SPEC)
+    parser.add_argument("path", nargs="?", type=Path, default=None)
     args = parser.parse_args(argv)
     errors = validate_spec(args.path)
     if errors:

@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import specsource  # noqa: E402
 SPEC = ROOT / "spec" / "SPECIFICATION.md"
 DOMAIN_CELL_RE = re.compile(r'^"(dacs[-a-z0-9]*:v1:)"$')
 
@@ -42,9 +44,10 @@ def markdown_table_rows(section: str) -> list[list[str]]:
     return rows
 
 
-def validate_domain_registry(path: Path, root: Path) -> list[str]:
+def validate_domain_registry(path: Path, root: Path, text: str | None = None) -> list[str]:
     errors: list[str] = []
-    text = path.read_text(encoding="utf-8")
+    if text is None:
+        text = path.read_text(encoding="utf-8")
     section = section_between(
         text,
         "The v0.1 registry of domain separators is closed:",
@@ -81,7 +84,7 @@ def validate_domain_registry(path: Path, root: Path) -> list[str]:
 
 def validate_repo(root: Path = ROOT) -> list[str]:
     root = root.resolve()
-    return validate_domain_registry(root / "spec" / "SPECIFICATION.md", root)
+    return validate_domain_registry(root / "spec" / "CORE.md", root, text=specsource.spec_text(root))
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -26,7 +26,7 @@ class SpecTableValidationTests(unittest.TestCase):
             root = Path(tmp)
             spec = root / "spec"
             spec.mkdir()
-            (spec / "SPECIFICATION.md").write_text(
+            (spec / "CORE.md").write_text(
                 "The v0.1 registry of domain separators is closed:\n"
                 "| Artifact | Domain separator | Defined in |\n"
                 "| --- | --- | --- |\n"
@@ -37,14 +37,14 @@ class SpecTableValidationTests(unittest.TestCase):
             )
             validator = load_validator()
             errors = validator.validate_repo(root)
-            self.assertEqual(errors, ["spec/SPECIFICATION.md: duplicate §7.7 domain separator: dacs-one:v1:"])
+            self.assertEqual(errors, ["spec/CORE.md: duplicate §7.7 domain separator: dacs-one:v1:"])
 
     def test_reports_malformed_registry_row(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             spec = root / "spec"
             spec.mkdir()
-            (spec / "SPECIFICATION.md").write_text(
+            (spec / "CORE.md").write_text(
                 "The v0.1 registry of domain separators is closed:\n"
                 "| Artifact | Domain separator | Defined in |\n"
                 "| --- | --- | --- |\n"
@@ -54,7 +54,7 @@ class SpecTableValidationTests(unittest.TestCase):
             )
             validator = load_validator()
             errors = validator.validate_repo(root)
-            self.assertEqual(errors, ["spec/SPECIFICATION.md: §7.7 row has invalid domain separator cell: missing quote"])
+            self.assertEqual(errors, ["spec/CORE.md: §7.7 row has invalid domain separator cell: missing quote"])
 
 
 if __name__ == "__main__":
